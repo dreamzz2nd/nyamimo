@@ -14,6 +14,9 @@
                 <span class="bg-[#FFCC00] text-[#17171B] font-extrabold font-title text-xs px-2.5 py-1 rounded-md shadow flex-shrink-0">
                     Eps {{.EpisodeNum}}
                 </span>
+                <span class="bg-[#2B2B32] text-[#FFCC00] font-bold font-title text-[11px] px-2.5 py-1 rounded-md border border-[#2B2B32] flex items-center gap-1 shrink-0">
+                    <i data-lucide="tv" class="w-3 h-3"></i> {{if .ActiveResolution}}{{.ActiveResolution}}{{else}}720p HD{{end}}
+                </span>
                 <h3 class="text-xs sm:text-sm font-bold font-title text-white truncate max-w-xs sm:max-w-md">
                     {{.Title}}
                 </h3>
@@ -27,7 +30,7 @@
                     title="Buka Pemutar dalam Layar Penuh"
                 >
                     <i data-lucide="maximize" class="w-4 h-4"></i>
-                    <span class="hidden sm:inline">Layar Penuh (Full Screen)</span>
+                    <span class="hidden sm:inline">Layar Penuh</span>
                 </button>
 
                 <!-- Close Button -->
@@ -60,28 +63,56 @@
                 {{else}}
                     <div class="flex flex-col items-center justify-center gap-3 text-[#A0A0A8] p-8">
                         <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-[#FFCC00]"></i>
-                        <span class="text-sm font-medium font-title">Memuat pemutar video...</span>
+                        <span class="text-sm font-medium font-title">Memuat pemutar video HD...</span>
                     </div>
                 {{end}}
             </div>
 
             <!-- Server & Resolution Options -->
-            <div class="p-4 sm:p-6 space-y-4">
+            <div class="p-4 sm:p-6 space-y-5">
                 
+                <!-- 1. Dedicated Resolution Switcher Bar -->
+                {{if .Resolutions}}
+                <div class="bg-[#212126] border border-[#2B2B32] rounded-2xl p-4 space-y-3 shadow-sm">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2 text-white font-bold font-title text-xs sm:text-sm">
+                            <span class="w-2.5 h-2.5 bg-[#FFCC00] rounded-full animate-pulse"></span> Ganti Kualitas Resolusi Video
+                        </div>
+                        <span class="text-[10px] text-[#FFCC00] font-bold font-title bg-[#17171B] px-2.5 py-1 rounded-md border border-[#2B2B32] flex items-center gap-1">
+                            ★ Minimal 720p HD Diutamakan
+                        </span>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2">
+                        {{range .Resolutions}}
+                        <button 
+                            hx-get="/api/video-url?path={{.Path}}" 
+                            hx-target="#player-iframe-container"
+                            class="px-4 py-2 rounded-xl text-xs font-extrabold font-title transition-all flex items-center gap-2 border shadow-sm {{if .IsSelected}}bg-[#FFCC00] text-[#17171B] border-[#FFCC00] scale-105{{else}}bg-[#17171B] hover:bg-[#FFCC00] text-[#A0A0A8] hover:text-[#17171B] border-[#2B2B32]{{end}}"
+                        >
+                            <i data-lucide="tv" class="w-3.5 h-3.5"></i>
+                            {{.Title}}
+                        </button>
+                        {{end}}
+                    </div>
+                </div>
+                {{end}}
+
+                <!-- 2. Server Streaming Provider Options -->
                 {{if .GroupedVideos}}
                 <div class="space-y-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2 text-white font-bold font-title text-xs sm:text-sm">
-                            <span class="w-2 h-2 bg-[#FFCC00] rounded-sm"></span> Pilihan Server Streaming (Provider)
+                            <i data-lucide="server" class="w-4 h-4 text-[#FFCC00]"></i> Pilihan Server Alternatif (Provider)
                         </div>
-                        <span class="text-[10px] text-[#A0A0A8]">Otomatis berpindah server jika terjadi gangguan</span>
+                        <span class="text-[10px] text-[#A0A0A8]">Otomatis memilih server paling stabil & aman</span>
                     </div>
 
                     <div class="grid gap-3">
                         {{range $provider, $videos := .GroupedVideos}}
                         <div class="bg-[#212126] border border-[#2B2B32] rounded-xl p-3 sm:p-4">
                             <div class="text-[10px] font-extrabold font-title text-[#FFCC00] uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
-                                {{$provider}}
+                                <i data-lucide="shield-check" class="w-3 h-3"></i> {{$provider}}
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 {{range $videos}}
@@ -90,7 +121,7 @@
                                     hx-target="#player-iframe-container" 
                                     class="px-3.5 py-1.5 rounded-lg bg-[#17171B] hover:bg-[#FFCC00] text-[#A0A0A8] hover:text-[#17171B] text-xs font-bold font-title transition-colors flex items-center gap-1.5 border border-[#2B2B32] focus:bg-[#FFCC00] focus:text-[#17171B]"
                                 >
-                                    <i data-lucide="play-circle" class="w-3.5 h-3.5 text-[#FFCC00] group-focus:text-[#17171B]"></i>
+                                    <i data-lucide="play-circle" class="w-3.5 h-3.5 text-[#FFCC00]"></i>
                                     {{.Title}}
                                 </button>
                                 {{end}}
@@ -101,7 +132,7 @@
                 </div>
                 {{end}}
 
-                <!-- Episode Download Links -->
+                <!-- 3. Episode Download Links -->
                 {{if .Downloads}}
                 <div class="space-y-3 pt-2">
                     <div class="flex items-center gap-2 text-white font-bold font-title text-xs sm:text-sm">
@@ -176,7 +207,7 @@
 {{else}}
     <div class="flex flex-col items-center justify-center gap-3 text-[#A0A0A8] p-8">
         <i data-lucide="alert-circle" class="w-8 h-8 text-[#FFCC00]"></i>
-        <span class="text-xs font-title font-semibold">Gagal memuat video dari server ini. Silakan coba server lain.</span>
+        <span class="text-xs font-title font-semibold">Gagal memuat video dari server ini. Silakan coba server lain di bawah.</span>
     </div>
 {{end}}
 <script>if (window.lucide) lucide.createIcons();</script>

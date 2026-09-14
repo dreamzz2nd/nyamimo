@@ -144,14 +144,24 @@ type AuthPageData struct {
 	ErrorMessage string
 }
 
+type ResolutionOption struct {
+	Quality    string `json:"quality"`
+	Title      string `json:"title"`
+	Path       string `json:"path"`
+	IsSelected bool   `json:"is_selected"`
+}
+
 type ModalPlayerData struct {
-	EpisodeNum    string
-	Title         string
-	VideoURL      string
-	RawIframe     template.HTML
-	Videos        []client.PlayerOption
-	GroupedVideos map[string][]client.PlayerOption
-	Downloads     []client.DownloadFormat
+	EpisodeNum        string
+	Title             string
+	VideoURL          string
+	RawIframe         template.HTML
+	Videos            []client.PlayerOption
+	GroupedVideos     map[string][]client.PlayerOption
+	Resolutions       []ResolutionOption
+	ActiveResolution  string
+	ActiveServerTitle string
+	Downloads         []client.DownloadFormat
 }
 
 var api *client.APIClient
@@ -411,6 +421,7 @@ func main() {
 	mux.HandleFunc("/api/notifications", handleNotifications)
 	mux.HandleFunc("/api/episode-modal", handleEpisodeModal)
 	mux.HandleFunc("/api/episode-inline", handleEpisodeInline)
+	mux.HandleFunc("/api/video-url", handleVideoURL)
 	mux.HandleFunc("/api/history/add", handleAPIHistoryAdd)
 	mux.HandleFunc("/api/history/clear", handleAPIHistoryClear)
 	mux.HandleFunc("/api/history/delete", handleAPIHistoryDelete)
@@ -1335,6 +1346,139 @@ func handleNotifications(w http.ResponseWriter, r *http.Request) {
 	renderPartial(w, "search_results.html", "search_results", data)
 }
 
+func buildModalPlayerData(epsDetail client.EpisodeDetailResponse, ep, title string) ModalPlayerData {
+	var selectedOpt *client.PlayerOption
+
+	// 1. Priority: Find 720p HD from reliable servers (Wibufile, DesuStream, Mega, VIP, Blogspot)
+	for i, v := range epsDetail.Videos {
+		tLower := strings.ToLower(v.Title)
+		if (strings.Contains(tLower, "720p") || strings.Contains(tLower, "mp4hd")) &&
+			(strings.Contains(tLower, "wibu") || strings.Contains(tLower, "desu") || strings.Contains(tLower, "mega") || strings.Contains(tLower, "vip") || strings.Contains(tLower, "blogspot")) {
+			selectedOpt = &epsDetail.Videos[i]
+			break
+		}
+	}
+
+	// 2. Priority: Find any 720p HD option
+	if selectedOpt == nil {
+		for i, v := range epsDetail.Videos {
+			tLower := strings.ToLower(v.Title)
+			if strings.Contains(tLower, "720p") || strings.Contains(tLower, "mp4hd") {
+				selectedOpt = &epsDetail.Videos[i]
+				break
+			}
+		}
+	}
+
+	// 3. Priority: Find 1080p or 480p
+	if selectedOpt == nil {
+		for i, v := range epsDetail.Videos {
+			tLower := strings.ToLower(v.Title)
+			if strings.Contains(tLower, "1080p") || strings.Contains(tLower, "480p") {
+				selectedOpt = &epsDetail.Videos[i]
+				break
+			}
+		}
+	}
+
+	// Fallback to first available option if no resolution match
+	if selectedOpt == nil && len(epsDetail.Videos) > 0 {
+		selectedOpt = &epsDetail.Videos[0]
+	}
+
+	var firstVideoURL string
+	var firstIframe template.HTML
+	var activeRes string = "720p HD"
+	var activeServerTitle string = "Server Utama"
+
+	if selectedOpt != nil {
+		activeServerTitle = selectedOpt.Title
+		var vidResp struct {
+			URL      string `json:"url"`
+			Response string `json:"response"`
+		}
+		_ = api.GetJSON(selectedOpt.Video, &vidResp)
+		firstVideoURL = vidResp.URL
+		firstIframe = template.HTML(vidResp.Response)
+
+		// Fallback auto-recovery if selected option returned empty stream
+		if firstVideoURL == "" && firstIframe == "" {
+			for _, v := range epsDetail.Videos {
+				if v.Video == selectedOpt.Video {
+					continue
+				}
+				var fallbackResp struct {
+					URL      string `json:"url"`
+					Response string `json:"response"`
+				}
+				if err := api.GetJSON(v.Video, &fallbackResp); err == nil && (fallbackResp.URL != "" || fallbackResp.Response != "") {
+					firstVideoURL = fallbackResp.URL
+					firstIframe = template.HTML(fallbackResp.Response)
+					activeServerTitle = v.Title
+					break
+				}
+			}
+		}
+	} else if epsDetail.VideoURL != "" && epsDetail.VideoURL != "belum tersedia (segera)" {
+		firstVideoURL = epsDetail.VideoURL
+	}
+
+	grouped := make(map[string][]client.PlayerOption)
+	var resolutions []ResolutionOption
+	resMap := make(map[string]bool)
+
+	for _, v := range epsDetail.Videos {
+		fields := strings.Fields(v.Title)
+		provider := "Server Video"
+		if len(fields) > 0 {
+			provider = fields[0]
+		}
+		grouped[provider] = append(grouped[provider], v)
+
+		// Parse quality tag
+		resTag := "HD"
+		tLower := strings.ToLower(v.Title)
+		if strings.Contains(tLower, "1080p") || strings.Contains(tLower, "fullhd") {
+			resTag = "1080p Full HD"
+		} else if strings.Contains(tLower, "720p") || strings.Contains(tLower, "mp4hd") {
+			resTag = "720p HD"
+		} else if strings.Contains(tLower, "480p") {
+			resTag = "480p SD"
+		} else if strings.Contains(tLower, "360p") {
+			resTag = "360p"
+		} else if strings.Contains(tLower, "4k") {
+			resTag = "4K"
+		}
+
+		if !resMap[v.Video] {
+			resMap[v.Video] = true
+			isSel := (selectedOpt != nil && selectedOpt.Video == v.Video)
+			if isSel {
+				activeRes = resTag
+			}
+			resolutions = append(resolutions, ResolutionOption{
+				Quality:    resTag,
+				Title:      v.Title,
+				Path:       v.Video,
+				IsSelected: isSel,
+			})
+		}
+	}
+
+	return ModalPlayerData{
+		EpisodeNum:        ep,
+		Title:             title,
+		VideoURL:          firstVideoURL,
+		RawIframe:         firstIframe,
+		Videos:            epsDetail.Videos,
+		GroupedVideos:     grouped,
+		Resolutions:       resolutions,
+		ActiveResolution:  activeRes,
+		ActiveServerTitle: activeServerTitle,
+		Downloads:         epsDetail.Downloads,
+	}
+}
+
 // HTMX Episode Modal Handler
 func handleEpisodeModal(w http.ResponseWriter, r *http.Request) {
 	detailEps := r.URL.Query().Get("detail_eps")
@@ -1344,41 +1488,7 @@ func handleEpisodeModal(w http.ResponseWriter, r *http.Request) {
 	var epsDetail client.EpisodeDetailResponse
 	_ = api.GetJSON(detailEps, &epsDetail)
 
-	var firstVideoURL string
-	var firstIframe template.HTML
-	if len(epsDetail.Videos) > 0 {
-		var vidResp struct {
-			URL      string `json:"url"`
-			Response string `json:"response"`
-		}
-		_ = api.GetJSON(epsDetail.Videos[0].Video, &vidResp)
-		firstVideoURL = vidResp.URL
-		firstIframe = template.HTML(vidResp.Response)
-	} else if epsDetail.VideoURL != "" && epsDetail.VideoURL != "belum tersedia (segera)" {
-		firstVideoURL = epsDetail.VideoURL
-	}
-
-	// Group videos by server provider name
-	grouped := make(map[string][]client.PlayerOption)
-	for _, v := range epsDetail.Videos {
-		fields := strings.Fields(v.Title)
-		provider := "Server Video"
-		if len(fields) > 0 {
-			provider = fields[0]
-		}
-		grouped[provider] = append(grouped[provider], v)
-	}
-
-	data := ModalPlayerData{
-		EpisodeNum:    ep,
-		Title:         title,
-		VideoURL:      firstVideoURL,
-		RawIframe:     firstIframe,
-		Videos:        epsDetail.Videos,
-		GroupedVideos: grouped,
-		Downloads:     epsDetail.Downloads,
-	}
-
+	data := buildModalPlayerData(epsDetail, ep, title)
 	renderPartial(w, "modal_player.html", "modal_player", data)
 }
 
@@ -1391,46 +1501,17 @@ func handleEpisodeInline(w http.ResponseWriter, r *http.Request) {
 	var epsDetail client.EpisodeDetailResponse
 	_ = api.GetJSON(detailEps, &epsDetail)
 
-	var firstVideoURL string
-	var firstIframe template.HTML
-	if len(epsDetail.Videos) > 0 {
-		var vidResp struct {
-			URL      string `json:"url"`
-			Response string `json:"response"`
-		}
-		_ = api.GetJSON(epsDetail.Videos[0].Video, &vidResp)
-		firstVideoURL = vidResp.URL
-		firstIframe = template.HTML(vidResp.Response)
-	} else if epsDetail.VideoURL != "" && epsDetail.VideoURL != "belum tersedia (segera)" {
-		firstVideoURL = epsDetail.VideoURL
-	}
-
-	grouped := make(map[string][]client.PlayerOption)
-	for _, v := range epsDetail.Videos {
-		fields := strings.Fields(v.Title)
-		provider := "Server Video"
-		if len(fields) > 0 {
-			provider = fields[0]
-		}
-		grouped[provider] = append(grouped[provider], v)
-	}
-
-	data := ModalPlayerData{
-		EpisodeNum:    ep,
-		Title:         title,
-		VideoURL:      firstVideoURL,
-		RawIframe:     firstIframe,
-		Videos:        epsDetail.Videos,
-		GroupedVideos: grouped,
-		Downloads:     epsDetail.Downloads,
-	}
-
+	data := buildModalPlayerData(epsDetail, ep, title)
 	renderPartial(w, "anime_detail.html", "inline_player_area", data)
 }
 
 // HTMX Video URL Switcher Handler
 func handleVideoURL(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Path parameter missing", http.StatusBadRequest)
+		return
+	}
 
 	var vidResp struct {
 		URL      string `json:"url"`
