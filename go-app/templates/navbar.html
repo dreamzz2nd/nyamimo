@@ -138,37 +138,37 @@
 <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-[#E2E2DC] shadow-[0_-4px_16px_rgba(0,0,0,0.06)] px-1.5 py-1.5 flex items-center justify-around">
     
     <!-- 1. Beranda -->
-    <a href="/" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition-all {{if eq .CurrentPage "home"}}text-[#2563EB] font-bold{{else}}text-[#71717A] hover:text-[#1A1A1E]{{end}}">
-        <i data-lucide="home" class="w-5 h-5 {{if eq .CurrentPage "home"}}stroke-[2.5px] text-[#2563EB]{{else}}stroke-[1.75px]{{end}}"></i>
+    <a href="/" class="flex flex-col items-center justify-center gap-0.5 py-1 px-3 rounded-xl transition-all {{if eq .CurrentPage "home"}}bg-[#FFCC00] text-[#17171B] font-bold shadow-sm border border-[#e6b800]{{else}}text-[#71717A] hover:text-[#1A1A1E]{{end}}">
+        <i data-lucide="home" class="w-5 h-5 {{if eq .CurrentPage "home"}}stroke-[2.5px] text-[#17171B]{{else}}stroke-[1.75px]{{end}}"></i>
         <span class="text-[10px] tracking-tight font-title">Beranda</span>
     </a>
 
     <!-- 2. Anime -->
-    <a href="/popular" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition-all {{if eq .CurrentPage "popular"}}text-[#2563EB] font-bold{{else}}text-[#71717A] hover:text-[#1A1A1E]{{end}}">
-        <i data-lucide="tv" class="w-5 h-5 {{if eq .CurrentPage "popular"}}stroke-[2.5px] text-[#2563EB]{{else}}stroke-[1.75px]{{end}}"></i>
+    <a href="/popular" class="flex flex-col items-center justify-center gap-0.5 py-1 px-3 rounded-xl transition-all {{if eq .CurrentPage "popular"}}bg-[#FFCC00] text-[#17171B] font-bold shadow-sm border border-[#e6b800]{{else}}text-[#71717A] hover:text-[#1A1A1E]{{end}}">
+        <i data-lucide="tv" class="w-5 h-5 {{if eq .CurrentPage "popular"}}stroke-[2.5px] text-[#17171B]{{else}}stroke-[1.75px]{{end}}"></i>
         <span class="text-[10px] tracking-tight font-title">Anime</span>
     </a>
 
     <!-- 3. Jadwal -->
-    <a href="/schedule" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition-all {{if eq .CurrentPage "schedule"}}text-[#2563EB] font-bold{{else}}text-[#71717A] hover:text-[#1A1A1E]{{end}}">
-        <i data-lucide="calendar" class="w-5 h-5 {{if eq .CurrentPage "schedule"}}stroke-[2.5px] text-[#2563EB]{{else}}stroke-[1.75px]{{end}}"></i>
+    <a href="/schedule" class="flex flex-col items-center justify-center gap-0.5 py-1 px-3 rounded-xl transition-all {{if eq .CurrentPage "schedule"}}bg-[#FFCC00] text-[#17171B] font-bold shadow-sm border border-[#e6b800]{{else}}text-[#71717A] hover:text-[#1A1A1E]{{end}}">
+        <i data-lucide="calendar" class="w-5 h-5 {{if eq .CurrentPage "schedule"}}stroke-[2.5px] text-[#17171B]{{else}}stroke-[1.75px]{{end}}"></i>
         <span class="text-[10px] tracking-tight font-title">Jadwal</span>
     </a>
 
     <!-- 4. Favorit -->
-    <a href="/profile" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition-all {{if eq .CurrentPage "genres"}}text-[#2563EB] font-bold{{else}}text-[#71717A] hover:text-[#1A1A1E]{{end}}">
-        <i data-lucide="bookmark" class="w-5 h-5 {{if eq .CurrentPage "genres"}}stroke-[2.5px] text-[#2563EB]{{else}}stroke-[1.75px]{{end}}"></i>
+    <a href="/profile" class="flex flex-col items-center justify-center gap-0.5 py-1 px-3 rounded-xl transition-all {{if eq .CurrentPage "genres"}}bg-[#FFCC00] text-[#17171B] font-bold shadow-sm border border-[#e6b800]{{else}}text-[#71717A] hover:text-[#1A1A1E]{{end}}">
+        <i data-lucide="bookmark" class="w-5 h-5 {{if eq .CurrentPage "genres"}}stroke-[2.5px] text-[#17171B]{{else}}stroke-[1.75px]{{end}}"></i>
         <span class="text-[10px] tracking-tight font-title">Favorit</span>
     </a>
 
     <!-- 5. Profil -->
     {{if .User}}
-    <a href="/profile" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition-all {{if eq .CurrentPage "profile"}}text-[#2563EB] font-bold{{else}}text-[#71717A] hover:text-[#1A1A1E]{{end}}">
-        <i data-lucide="user" class="w-5 h-5 {{if eq .CurrentPage "profile"}}stroke-[2.5px] text-[#2563EB]{{else}}stroke-[1.75px]{{end}}"></i>
+    <a href="/profile" class="flex flex-col items-center justify-center gap-0.5 py-1 px-3 rounded-xl transition-all {{if eq .CurrentPage "profile"}}bg-[#FFCC00] text-[#17171B] font-bold shadow-sm border border-[#e6b800]{{else}}text-[#71717A] hover:text-[#1A1A1E]{{end}}">
+        <i data-lucide="user" class="w-5 h-5 {{if eq .CurrentPage "profile"}}stroke-[2.5px] text-[#17171B]{{else}}stroke-[1.75px]{{end}}"></i>
         <span class="text-[10px] tracking-tight font-title">Profil</span>
     </a>
     {{else}}
-    <button type="button" @click="showLoginModal = true; loginView = 'options'" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition-all text-[#71717A] hover:text-[#1A1A1E]">
+    <button type="button" @click="showLoginModal = true; loginView = 'options'" class="flex flex-col items-center justify-center gap-0.5 py-1 px-3 rounded-xl transition-all text-[#71717A] hover:text-[#1A1A1E]">
         <i data-lucide="user" class="w-5 h-5 stroke-[1.75px]"></i>
         <span class="text-[10px] tracking-tight font-title">Profil</span>
     </button>
