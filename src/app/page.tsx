@@ -19,7 +19,7 @@ import { isInMyList, toggleMyList, getMyList } from "@/utils/myList";
 import { API_URL } from '@/utils/config';
 
 // Check if banner should be shown (once per day)
-const BANNER_STORAGE_KEY = 'animekudesu_banner_last_shown';
+const BANNER_STORAGE_KEY = 'nyamimo_banner_last_shown';
 
 function shouldShowBanner(): boolean {
   if (typeof window === 'undefined') return false;
@@ -303,7 +303,7 @@ export default function Home() {
 
                       {/* Description placeholder */}
                       <p className="text-gray-300 text-sm md:text-base mb-4 md:mb-6 line-clamp-2 max-w-xl leading-relaxed hidden md:block">
-                        Watch the latest episode of {anime.title}. Stream now in HD quality on Animekudesu.
+                        Watch the latest episode of {anime.title}. Stream now in HD quality on Nyamimo.
                       </p>
 
                       {/* Action Buttons */}
@@ -500,7 +500,7 @@ export default function Home() {
               <div className="relative aspect-[16/10] sm:aspect-[16/9] overflow-hidden">
                 <img
                   src="/banner.png"
-                  alt="Animekudesu Banner"
+                  alt="Nyamimo Banner"
                   className="w-full h-full object-cover"
                 />
                 {/* Gradient Overlay */}
@@ -510,7 +510,7 @@ export default function Home() {
               {/* Content */}
               <div className="p-5 sm:p-6">
                 <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
-                  Selamat Datang di Animekudesu! 🎉
+                  Selamat Datang di Nyamimo! 🎉
                 </h3>
                 <p className="text-gray-400 text-sm leading-relaxed mb-4">
                   Nikmati streaming anime favorit kamu dengan kualitas terbaik. 
@@ -621,7 +621,7 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <p className="text-gray-300 text-sm leading-relaxed mb-4">
-                    Watch {selectedAnime.title} now on Animekudesu. Stream in high quality with no ads. 
+                    Watch {selectedAnime.title} now on Nyamimo. Stream in high quality with no ads. 
                     Experience the best anime streaming with our curated collection.
                   </p>
                   

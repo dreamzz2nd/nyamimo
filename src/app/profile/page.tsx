@@ -106,7 +106,7 @@ export default function ProfilePage() {
             {/* Profile Info */}
             <div className="text-center md:text-left">
               <h1 className="text-2xl md:text-4xl font-heading text-white mb-2">Guest User</h1>
-              <p className="text-gray-400 mb-4">Selamat datang di Animekudesu</p>
+              <p className="text-gray-400 mb-4">Selamat datang di Nyamimo</p>
               
               {/* Stats */}
               <div className="flex items-center justify-center md:justify-start gap-6">

@@ -19,7 +19,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Animekudesu",
+  title: "Nyamimo - Stream Anime Sub Indo Gratis HD",
   description: "Stream your favorite anime in high quality, completely free and without any ads. Enjoy a seamless and uninterrupted viewing experience.",
 };
 

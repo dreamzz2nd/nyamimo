@@ -123,7 +123,7 @@ const Navbar = () => {
             <Link href="/" className='flex items-center gap-2 group'>
               <Play className='text-red-600 fill-red-600 w-7 h-7 md:w-8 md:h-8 group-hover:scale-110 transition-transform' />
               <span className='text-red-600 font-heading text-xl md:text-3xl tracking-wider group-hover:text-red-500 transition-colors'>
-                ANIMEKUDESU
+                NYAMIMO
               </span>
             </Link>
             

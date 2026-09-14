@@ -14,7 +14,7 @@ const Loading = ({ variant = 'default', text }: LoadingProps) => {
         <div className="netflix-loader">
           <div className="logo-container">
             <Play className="logo-icon" />
-            <span className="logo-text">ANIMEKUDESU</span>
+            <span className="logo-text">NYAMIMO</span>
           </div>
           <div className="loading-bar">
             <div className="loading-bar-inner"></div>
@@ -51,7 +51,7 @@ const Loading = ({ variant = 'default', text }: LoadingProps) => {
         <Play className="pulse-icon" />
       </div>
       <div className="wave-text">
-        {'ANIMEKUDESU'.split('').map((char, index) => (
+        {'NYAMIMO'.split('').map((char, index) => (
           <span key={index} style={{ animationDelay: `${index * 0.1}s` }}>
             {char}
           </span>

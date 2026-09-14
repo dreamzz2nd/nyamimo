@@ -46,7 +46,7 @@ const Footer = () => {
               <div className="w-10 h-10 bg-red-600 rounded flex items-center justify-center">
                 <Play className="w-5 h-5 text-white fill-white" />
               </div>
-              <span className="text-2xl font-heading text-white">ANIMEKUDESU</span>
+              <span className="text-2xl font-heading text-white">NYAMIMO</span>
             </Link>
             <p className="text-gray-400 text-sm leading-relaxed mb-4">
               Stream your favorite anime in HD quality. Watch the latest episodes and discover new series with our extensive collection.
