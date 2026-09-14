@@ -1,0 +1,463 @@
+{{define "content"}}
+<div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    
+    <!-- Breadcrumb Bar -->
+    <nav class="flex items-center gap-2 text-xs text-[#55555B] font-medium overflow-x-auto whitespace-nowrap">
+        <a href="/" class="hover:text-[#1A1A1E] transition-colors">Beranda</a>
+        <span>/</span>
+        <a href="/popular" class="hover:text-[#1A1A1E] transition-colors">Anime</a>
+        <span>/</span>
+        <a href="/anime/{{.Slug}}" class="hover:text-[#1A1A1E] transition-colors">{{.Detail.Title}}</a>
+        <span>/</span>
+        <span class="text-[#1A1A1E] font-bold">Episode {{.ActiveEpisodeNum}}</span>
+    </nav>
+
+    <!-- Top Headline Header -->
+    <div class="border-b border-[#E2E2DC] pb-4 space-y-1">
+        <div class="flex items-center gap-2 text-xs font-semibold">
+            <span class="bg-[#FFCC00] text-[#17171B] font-extrabold px-2.5 py-0.5 rounded-md uppercase tracking-wider text-[11px] font-title shadow-sm">
+                EPISODE {{.ActiveEpisodeNum}}
+            </span>
+            <span class="text-[#55555B] font-medium">• Subtitle Indonesia • Playback Auto</span>
+        </div>
+        <h1 class="text-xl sm:text-2xl md:text-3xl font-bold font-title text-[#1A1A1E] tracking-tight">
+            {{.Detail.Title}} — Episode {{.ActiveEpisodeNum}}{{if .ActiveEpisodeTitle}}: {{.ActiveEpisodeTitle}}{{end}}
+        </h1>
+    </div>
+
+    <!-- Main Dual Column Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left Column: Video Player & Diagnostics (8/9 Cols) -->
+        <div class="lg:col-span-8 xl:col-span-9 space-y-4">
+            
+            <div id="inline-player-area">
+                {{template "inline_player_area" .}}
+            </div>
+
+            <!-- Card: Pilihan Server Streaming (Provider) -->
+            <div class="bg-white border border-[#E2E2DC] rounded-xl p-4 sm:p-5 shadow-sm space-y-3">
+                <div class="flex items-center justify-between border-b border-[#E2E2DC] pb-2.5">
+                    <h3 class="font-title font-bold text-sm text-[#1A1A1E] flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 bg-[#FFCC00] rounded-sm"></span> Pilihan Server Streaming (Provider)
+                    </h3>
+                    <span class="text-xs text-[#55555B]">Otomatis pindah server jika server utama bermasalah</span>
+                </div>
+                
+                {{if .GroupedVideos}}
+                <div class="grid gap-3">
+                    {{range $provider, $videos := .GroupedVideos}}
+                    <div class="bg-[#F6F5F0] border border-[#E2E2DC] rounded-xl p-3">
+                        <div class="text-[11px] font-extrabold font-title text-[#17171B] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <i data-lucide="server" class="w-3.5 h-3.5 text-[#FFCC00]"></i> {{$provider}}
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            {{range $videos}}
+                            <button 
+                                hx-get="/api/video-url?path={{.Video}}" 
+                                hx-target="#player-iframe-container" 
+                                onclick="showServerToast('Beralih ke {{.Title}}...'); startServerHealthWatchdog();"
+                                class="px-3.5 py-1.5 rounded-lg bg-white hover:bg-[#FFCC00] text-[#1A1A1E] hover:text-[#17171B] text-xs font-bold font-title transition-colors flex items-center gap-1.5 border border-[#E2E2DC] shadow-sm focus:bg-[#17171B] focus:text-[#FFCC00]"
+                            >
+                                <i data-lucide="play" class="w-3 h-3 text-[#17171B]"></i>
+                                {{.Title}}
+                            </button>
+                            {{end}}
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+                {{else}}
+                <p class="text-xs text-[#55555B]">Server dikonfigurasi otomatis dalam mode optimal.</p>
+                {{end}}
+            </div>
+
+            <!-- Catatan Diagnostik Pemutaran Video Box -->
+            <div class="bg-white border border-[#E2E2DC] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-[#17171B] flex items-center justify-center text-[#FFCC00] shrink-0 mt-0.5">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold font-title text-[#1A1A1E]">Catatan Diagnostik Pemutaran Video</h4>
+                        <p class="text-xs text-[#55555B] leading-relaxed mt-0.5">
+                            Jika kendala berlanjut setelah mengganti server, silakan nonaktifkan ekstensi AdBlock atau periksa koneksi DNS provider kamu. Tim teknis Nyamimo telah menerima laporan otomatis ini.
+                        </p>
+                    </div>
+                </div>
+                <button onclick="alert('Log diagnostik disalin ke clipboard!');" class="px-4 py-2 rounded-lg bg-[#F6F5F0] hover:bg-[#E2E2DC] border border-[#E2E2DC] text-[#1A1A1E] font-bold text-xs transition-colors shrink-0 font-title">
+                    Salin Log Error
+                </button>
+            </div>
+
+            <!-- Anime Info Card -->
+            <div class="bg-white border border-[#E2E2DC] rounded-xl p-6 shadow-sm space-y-4">
+                <div class="flex flex-col sm:flex-row gap-6">
+                    <div class="w-36 sm:w-44 aspect-[3/4] rounded-lg overflow-hidden border border-[#E2E2DC] shrink-0">
+                        <img src="{{.Detail.Img}}" alt="{{.Detail.Title}}" class="w-full h-full object-cover" />
+                    </div>
+                    <div class="space-y-3 flex-1">
+                        <div class="flex flex-wrap gap-2">
+                            <span class="bg-[#FFCC00] text-[#17171B] font-bold text-xs px-2.5 py-0.5 rounded-md">
+                                {{if .Detail.Type}}{{.Detail.Type}}{{else}}TV ANIME{{end}}
+                            </span>
+                            <span class="bg-[#F6F5F0] border border-[#E2E2DC] text-[#1A1A1E] font-semibold text-xs px-2.5 py-0.5 rounded-md">
+                                {{if .Detail.Status}}{{.Detail.Status}}{{else}}Publishing{{end}}
+                            </span>
+                            {{if .Detail.Score}}
+                            <span class="bg-[#F6F5F0] border border-[#E2E2DC] text-[#1A1A1E] font-bold text-xs px-2.5 py-0.5 rounded-md flex items-center gap-1">
+                                ★ {{.Detail.Score}}
+                            </span>
+                            {{end}}
+                        </div>
+                        <h2 class="text-lg font-bold font-title text-[#1A1A1E]">{{.Detail.Title}}</h2>
+                        <div class="flex flex-wrap gap-1.5">
+                            {{range .Detail.Genres}}
+                            <a href="/genres/{{.ID}}" class="bg-[#F6F5F0] hover:bg-[#E2E2DC] border border-[#E2E2DC] text-[#55555B] hover:text-[#1A1A1E] text-xs px-2.5 py-1 rounded-lg transition-colors font-medium">
+                                {{.Title}}
+                            </a>
+                            {{end}}
+                        </div>
+                        <p class="text-xs text-[#55555B] leading-relaxed line-clamp-4">
+                            {{.Detail.Synopsis}}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Episode Grid Sidebar & Recommendations (4/3 Cols) -->
+        <div class="lg:col-span-4 xl:col-span-3 space-y-4">
+            
+            <!-- Card 1: Pilih Episode Lain -->
+            <div class="bg-white border border-[#E2E2DC] rounded-xl p-4 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-[#E2E2DC] pb-3">
+                    <h3 class="font-title font-bold text-sm text-[#1A1A1E]">Pilih Episode Lain</h3>
+                    <span class="text-xs text-[#55555B] font-semibold">Total {{len .Detail.Episodes}} Episode</span>
+                </div>
+
+                <!-- Episode Grid (4 cols) -->
+                <div class="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto pr-1">
+                    {{range .Detail.Episodes}}
+                    <a 
+                        href="/anime/{{$.Slug}}/?ep={{.Number}}" 
+                        class="h-10 rounded-lg font-title font-bold text-xs flex items-center justify-center relative transition-all border {{if eq .Number $.ActiveEpisodeNum}}bg-[#17171B] text-white border-[#17171B] shadow-sm ring-2 ring-[#17171B]{{else}}bg-[#F6F5F0] hover:bg-[#E2E2DC] text-[#1A1A1E] border-[#E2E2DC]{{end}}"
+                    >
+                        <span>{{.Number}}</span>
+                        {{if eq .Number $.ActiveEpisodeNum}}
+                        <span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#FFCC00]"></span>
+                        {{end}}
+                    </a>
+                    {{end}}
+                </div>
+
+                <!-- Tips Box -->
+                <div class="bg-[#F6F5F0] border border-[#E2E2DC] p-3 rounded-lg text-xs text-[#55555B] leading-relaxed flex items-start gap-2">
+                    <span class="text-base shrink-0">💡</span>
+                    <span><strong>Tips:</strong> Episode 2 dan seterusnya siap ditonton langsung tanpa hambatan.</span>
+                </div>
+            </div>
+
+            <!-- Card 2: Tonton Anime Lain Tanpa Masalah -->
+            <div class="bg-white border border-[#E2E2DC] rounded-xl p-4 shadow-sm space-y-3">
+                <h3 class="font-title font-bold text-sm text-[#1A1A1E] border-b border-[#E2E2DC] pb-2">
+                    Tonton Anime Lain Tanpa Masalah
+                </h3>
+
+                <div class="space-y-2">
+                    {{range $idx, $anime := .Detail.Recommendations}}
+                    {{if lt $idx 4}}
+                    <a href="/anime/{{$anime.Slug}}" class="flex items-center justify-between p-2 rounded-lg hover:bg-[#F6F5F0] transition-colors group">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-10 h-10 rounded-lg bg-[#17171B] text-white flex items-center justify-center font-bold text-[10px] uppercase font-title shrink-0 overflow-hidden">
+                                {{if $anime.Img}}
+                                <img src="{{$anime.Img}}" alt="{{$anime.Title}}" class="w-full h-full object-cover" />
+                                {{else}}
+                                ANIME
+                                {{end}}
+                            </div>
+                            <div class="truncate">
+                                <h4 class="text-xs font-bold text-[#1A1A1E] truncate group-hover:text-[#FFCC00] transition-colors">{{$anime.Title}}</h4>
+                                <span class="text-[11px] text-[#55555B]">Episode terbaru • Lancar</span>
+                            </div>
+                        </div>
+                        <i data-lucide="play" class="w-4 h-4 text-[#55555B] group-hover:text-[#1A1A1E] shrink-0 ml-2"></i>
+                    </a>
+                    {{end}}
+                    {{end}}
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Batch Download Section -->
+    {{if .BatchDownloads}}
+    <div class="bg-white border border-[#E2E2DC] rounded-xl p-6 shadow-sm space-y-4 mt-6">
+        <h3 class="text-base font-bold font-title text-[#1A1A1E] border-b border-[#E2E2DC] pb-3 flex items-center gap-2">
+            <i data-lucide="download" class="w-4 h-4 text-[#FFCC00]"></i> Download Batch Full Episode
+        </h3>
+        <div class="space-y-3">
+            {{range .BatchDownloads}}
+            <div class="bg-[#F6F5F0] border border-[#E2E2DC] rounded-lg p-3 space-y-2">
+                <span class="text-xs font-bold text-[#1A1A1E] uppercase">{{.Format}}</span>
+                <div class="space-y-1.5">
+                    {{range .List}}
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white p-2 rounded border border-[#E2E2DC] text-xs">
+                        <span class="font-bold text-[#1A1A1E]">{{.Resolution}}</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            {{range .Links}}
+                            <a href="{{.Link}}" target="_blank" class="px-2.5 py-1 bg-[#F6F5F0] hover:bg-[#FFCC00] text-[#1A1A1E] font-bold text-[11px] rounded border border-[#E2E2DC] transition-colors">
+                                {{.Title}}
+                            </a>
+                            {{end}}
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+        </div>
+    </div>
+    {{end}}
+
+</div>
+{{end}}
+
+{{define "inline_player_area"}}
+<style>
+#player-iframe-container iframe {
+    width: 100% !important;
+    height: 100% !important;
+    border: 0 !important;
+}
+</style>
+<!-- Video Player Box Container (Black Background Neutral) -->
+<div class="relative w-full aspect-video rounded-2xl overflow-hidden bg-[#17171B] border border-[#2B2B32] shadow-md select-none group flex flex-col justify-between">
+    
+    <!-- iFrame / Player Content -->
+    <div id="player-iframe-container" class="relative w-full h-full flex items-center justify-center">
+        {{if .RawIframe}}
+            {{.RawIframe}}
+        {{else if .VideoURL}}
+            <iframe 
+                id="player-iframe"
+                src="{{.VideoURL}}" 
+                class="w-full h-full border-0" 
+                allowfullscreen="true"
+                webkitallowfullscreen="true"
+                mozallowfullscreen="true"
+                onload="onPlayerIframeLoad()"
+                onerror="onPlayerIframeError()"
+                allow="fullscreen; autoplay; clipboard-write; encrypted-media; picture-in-picture; accelerometer; gyroscope"
+            ></iframe>
+        {{else}}
+            <!-- Default Error / Streaming Fallback Display -->
+            <div class="flex flex-col items-center justify-center p-8 text-center space-y-4 max-w-lg mx-auto">
+                <div class="w-14 h-14 rounded-2xl bg-[#212126] border border-[#2B2B32] flex items-center justify-center text-[#FFCC00] shadow-md">
+                    <i data-lucide="tv" class="w-7 h-7"></i>
+                </div>
+                <div class="space-y-1">
+                    <h3 class="text-base sm:text-lg font-bold font-title text-white">Memeriksa Server Video Streaming...</h3>
+                    <p class="text-xs text-[#A0A0A8] leading-relaxed">
+                        Sistem sedang memverifikasi server media terbaik untuk kamu.
+                    </p>
+                </div>
+                <button onclick="location.reload();" class="px-4 py-2 rounded-lg bg-[#FFCC00] text-[#17171B] font-bold text-xs">
+                    Muat Ulang Video
+                </button>
+            </div>
+        {{end}}
+    </div>
+
+    <!-- Bottom Player Control Bar (Dark Overlay Bar) -->
+    <div class="bg-[#17171B]/95 border-t border-[#2B2B32] px-4 py-2.5 flex items-center justify-between text-xs text-[#A0A0A8] z-20">
+        <div class="flex items-center gap-3">
+            <button class="w-7 h-7 rounded-lg bg-[#212126] hover:bg-[#2B2B32] text-white flex items-center justify-center transition-colors">
+                <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+            </button>
+            <span class="font-mono text-[11px]">--:-- / --:--</span>
+        </div>
+
+        <div class="flex items-center gap-2.5 text-[11px] font-semibold">
+            <!-- Single Quality Button & Dropdown -->
+            <div x-data="{ openQuality: false }" class="relative">
+                <button 
+                    @click="openQuality = !openQuality" 
+                    class="px-2.5 py-1 rounded bg-[#212126] hover:bg-[#2B2B32] text-white border border-[#2B2B32] font-bold flex items-center gap-1.5 transition-colors"
+                    title="Ubah Kualitas / Resolusi Video"
+                >
+                    <i data-lucide="settings" class="w-3.5 h-3.5 text-[#FFCC00]"></i>
+                    <span id="active-quality-label" class="font-title">Quality: Auto (720p)</span>
+                    <i data-lucide="chevron-down" class="w-3 h-3 text-[#A0A0A8]"></i>
+                </button>
+
+                <!-- Quality Popup Dropdown -->
+                <div 
+                    x-show="openQuality" 
+                    @click.away="openQuality = false" 
+                    x-transition
+                    class="absolute bottom-full right-0 mb-2 w-48 bg-[#17171B] border border-[#2B2B32] rounded-xl shadow-2xl p-2 z-50 text-xs space-y-1 font-title"
+                    style="display: none;"
+                >
+                    <div class="text-[10px] font-extrabold text-[#A0A0A8] px-2 py-1 uppercase tracking-wider">Kualitas Resolusi Video</div>
+                    <button onclick="setPlayerQuality('Auto', 'Auto (Optimal)'); openQuality = false" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#FFCC00] hover:text-[#17171B] text-white font-bold flex items-center justify-between transition-colors">
+                        <span>Auto (Optimal)</span>
+                        <span class="text-[9px] px-1 bg-[#FFCC00]/20 rounded text-[#FFCC00]">Rekomendasi</span>
+                    </button>
+                    <button onclick="setPlayerQuality('1080p', '1080p (Full HD)'); openQuality = false" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#FFCC00] hover:text-[#17171B] text-white font-semibold transition-colors">1080p (Full HD)</button>
+                    <button onclick="setPlayerQuality('720p', '720p (HD)'); openQuality = false" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#FFCC00] hover:text-[#17171B] text-white font-semibold transition-colors">720p (HD)</button>
+                    <button onclick="setPlayerQuality('480p', '480p (SD)'); openQuality = false" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#FFCC00] hover:text-[#17171B] text-white font-semibold transition-colors">480p (SD)</button>
+                    <button onclick="setPlayerQuality('360p', '360p (Hemat Data)'); openQuality = false" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#FFCC00] hover:text-[#17171B] text-white font-semibold transition-colors">360p (Hemat Data)</button>
+                </div>
+            </div>
+
+            <!-- Fullscreen Button -->
+            <button onclick="toggleFullScreenPlayer()" class="px-2.5 py-1 rounded bg-[#FFCC00] hover:bg-[#e6b800] text-[#17171B] font-bold flex items-center gap-1.5 transition-colors shadow">
+                <i data-lucide="maximize" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">Layar Penuh (Full Screen)</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    if (window.lucide) lucide.createIcons();
+
+    window.currentEpisodeServers = [
+        {{range .Videos}}
+        { id: "{{.ID}}", title: "{{.Title}}", videoPath: "{{.Video}}" },
+        {{end}}
+    ];
+    window.activeServerIdx = 0;
+    window.serverWatchdogTimer = null;
+
+    function setPlayerQuality(qCode, qLabel) {
+        const lbl = document.getElementById('active-quality-label');
+        if (lbl) lbl.textContent = 'Quality: ' + qCode;
+        
+        if (window.currentEpisodeServers && window.currentEpisodeServers.length > 0) {
+            let targetIdx = -1;
+            const targetRes = qCode.toLowerCase().replace('p', '');
+
+            if (qCode !== 'Auto') {
+                for (let i = 0; i < window.currentEpisodeServers.length; i++) {
+                    const title = (window.currentEpisodeServers[i].title || '').toLowerCase();
+                    if (title.includes(targetRes)) {
+                        targetIdx = i;
+                        break;
+                    }
+                }
+            }
+
+            if (targetIdx === -1) {
+                targetIdx = 0;
+            }
+
+            const chosen = window.currentEpisodeServers[targetIdx];
+            if (chosen && chosen.videoPath) {
+                window.activeServerIdx = targetIdx;
+                showServerToast('Beralih ke kualitas ' + qLabel + ' (' + chosen.title + ')...');
+                htmx.ajax('GET', '/api/video-url?path=' + encodeURIComponent(chosen.videoPath), {
+                    target: '#player-iframe-container',
+                    swap: 'innerHTML'
+                });
+                startServerHealthWatchdog();
+                return;
+            }
+        }
+
+        showServerToast('Kualitas diubah ke ' + qLabel);
+        setTimeout(hideServerToast, 2200);
+    }
+
+    function startServerHealthWatchdog() {
+        if (!window.currentEpisodeServers || window.currentEpisodeServers.length === 0) return;
+        if (window.serverWatchdogTimer) clearTimeout(window.serverWatchdogTimer);
+
+        window.serverWatchdogTimer = setTimeout(function() {
+            if (window.activeServerIdx + 1 < window.currentEpisodeServers.length) {
+                const nextIdx = window.activeServerIdx + 1;
+                const currentName = window.currentEpisodeServers[window.activeServerIdx] ? window.currentEpisodeServers[window.activeServerIdx].title : "Server";
+                const nextServer = window.currentEpisodeServers[nextIdx];
+                
+                showServerToast("⚠️ " + currentName + " bermasalah. Mengalihkan otomatis ke " + nextServer.title + "...");
+                window.activeServerIdx = nextIdx;
+
+                setTimeout(function() {
+                    htmx.ajax('GET', '/api/video-url?path=' + encodeURIComponent(nextServer.videoPath), {
+                        target: '#player-iframe-container',
+                        swap: 'innerHTML'
+                    });
+                }, 1000);
+            } else {
+                showAllServersFailedState();
+            }
+        }, 7000);
+    }
+
+    function onPlayerIframeLoad() {
+        if (window.serverWatchdogTimer) clearTimeout(window.serverWatchdogTimer);
+        hideServerToast();
+    }
+
+    function onPlayerIframeError() {
+        if (window.serverWatchdogTimer) clearTimeout(window.serverWatchdogTimer);
+        if (window.activeServerIdx + 1 < window.currentEpisodeServers.length) {
+            const nextIdx = window.activeServerIdx + 1;
+            const nextServer = window.currentEpisodeServers[nextIdx];
+            showServerToast("⚠️ Server bermasalah. Mengalihkan otomatis ke " + nextServer.title + "...");
+            window.activeServerIdx = nextIdx;
+            htmx.ajax('GET', '/api/video-url?path=' + encodeURIComponent(nextServer.videoPath), {
+                target: '#player-iframe-container',
+                swap: 'innerHTML'
+            });
+        } else {
+            showAllServersFailedState();
+        }
+    }
+
+    function showServerToast(msg) {
+        let toast = document.getElementById('player-status-toast');
+        const container = document.getElementById('player-iframe-container');
+        if (!container) return;
+
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'player-status-toast';
+            toast.className = 'absolute top-3 left-3 z-30 px-3 py-1.5 rounded-lg bg-[#17171B]/90 border border-[#FFCC00]/50 text-[#FFCC00] text-xs font-bold font-title shadow-lg backdrop-blur-md transition-all flex items-center gap-2';
+            container.appendChild(toast);
+        }
+        toast.innerHTML = '<span class="w-2 h-2 rounded-full bg-[#FFCC00] animate-pulse"></span>' + msg;
+        toast.style.display = 'flex';
+    }
+
+    function hideServerToast() {
+        const toast = document.getElementById('player-status-toast');
+        if (toast) toast.style.display = 'none';
+    }
+
+    function showAllServersFailedState() {
+        const container = document.getElementById('player-iframe-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center p-8 text-center space-y-4 max-w-lg mx-auto">
+                    <div class="w-12 h-12 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 shadow-md">
+                        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                    </div>
+                    <div class="space-y-1">
+                        <h3 class="text-sm font-bold font-title text-white">Semua Server Mengalami Gangguan</h3>
+                        <p class="text-xs text-[#A0A0A8]">Sistem telah memeriksa semua server namun tidak ada yang merespon. Silakan coba muat ulang atau pilih episode lain.</p>
+                    </div>
+                    <button onclick="location.reload();" class="px-4 py-2 rounded-lg bg-[#FFCC00] text-[#17171B] font-bold text-xs">Muat Ulang Halaman</button>
+                </div>
+            `;
+            if (window.lucide) lucide.createIcons();
+        }
+    }
+
+    // Start health check on load
+    startServerHealthWatchdog();
+</script>
+{{end}}
