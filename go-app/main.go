@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -250,7 +251,10 @@ func main() {
 		http.ServeFile(w, r, "public/logo.png")
 	})
 
-	port := "3000"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3000"
+	}
 	fmt.Printf("🚀 Server Go + HTMX running on http://localhost:%s\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, mux))
 }
