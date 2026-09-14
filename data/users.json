@@ -1,0 +1,16 @@
+{
+  "nyamimofan": {
+    "username": "nyamimofan",
+    "password": "nyamimopass",
+    "name": "OtakuMember",
+    "role": "user",
+    "created_at": "2026-09-15T02:50:03.861759317+07:00"
+  },
+  "rizky": {
+    "username": "rizky",
+    "password": "12345678",
+    "name": "rizky ibrahim nasrullah",
+    "role": "user",
+    "created_at": "2026-09-15T02:55:26.761894175+07:00"
+  }
+}

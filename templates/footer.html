@@ -1,0 +1,35 @@
+{{define "footer"}}
+<footer class="bg-white border-t border-[#E2E2DC] mt-12 py-8 text-xs text-[#55555B]">
+    <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+        
+        <!-- Left: Logo & Copyright -->
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 flex items-center justify-center p-0.5 shrink-0 bg-[#F6F5F0] rounded-xl border border-[#E2E2DC]">
+                <img src="/static/logo.png" alt="Nyamimo Logo" class="w-full h-full object-contain filter drop-shadow-sm" />
+            </div>
+            <div>
+                <p class="font-bold text-[#1A1A1E] font-title">© 2026 Nyamimo Anime Stream</p>
+                <p class="text-[11px] text-[#55555B]">Layanan Nonton Anime Gratis HD Subtitle Indonesia</p>
+            </div>
+        </div>
+
+        <!-- Center: Total Anime Counter Badge -->
+        <div class="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#F6F5F0] border border-[#E2E2DC] shadow-sm">
+            <div class="w-2.5 h-2.5 rounded-full bg-[#FFCC00] animate-pulse"></div>
+            <span class="text-xs text-[#55555B] font-semibold">Total Koleksi Anime:</span>
+            <span class="font-extrabold font-title text-xs sm:text-sm text-[#17171B] px-2.5 py-0.5 rounded-lg bg-[#FFCC00] shadow-sm">
+                {{getTotalAnimeCount}} Anime
+            </span>
+        </div>
+
+        <!-- Right: Links & Server Indicator -->
+        <div class="flex items-center gap-4 text-[11px] font-bold font-title">
+            <span class="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                Server Normal
+            </span>
+            <a href="#" class="hover:text-[#1A1A1E] transition-colors">Pusat Bantuan Streaming</a>
+        </div>
+    </div>
+</footer>
+{{end}}
