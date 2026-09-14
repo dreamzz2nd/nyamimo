@@ -11,7 +11,7 @@ export interface SavedAnime {
   addedAt: number; // timestamp when added
 }
 
-const MY_LIST_KEY = 'animekudesu_mylist';
+const MY_LIST_KEY = 'nyamimo_mylist';
 
 // Get all items from My List
 export function getMyList(): SavedAnime[] {
@@ -105,7 +105,7 @@ export function getMyListCount(): number {
 
 // ============ LIKED ANIME FUNCTIONS ============
 
-const LIKED_KEY = 'animekudesu_liked';
+const LIKED_KEY = 'nyamimo_liked';
 
 // Get all liked anime links
 export function getLikedAnime(): string[] {
