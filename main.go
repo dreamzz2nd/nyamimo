@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -15,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/lib/pq"
 	"nyamimo-go/client"
 )
 
@@ -111,22 +109,11 @@ type SchedulePageData struct {
 	AnimeList   []client.AnimeItem
 }
 
-type HistoryItem struct {
-	Title     string    `json:"title"`
-	Slug      string    `json:"slug"`
-	Episode   string    `json:"episode"`
-	Img       string    `json:"img"`
-	Link      string    `json:"link"`
-	WatchedAt time.Time `json:"watched_at"`
-}
-
 type User struct {
-	Username     string        `json:"username"`
-	Password     string        `json:"password"`
-	Name         string        `json:"name"`
-	Role         string        `json:"role"` // "admin" or "user"
-	CreatedAt    time.Time     `json:"created_at"`
-	WatchHistory []HistoryItem `json:"watch_history"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+	Role     string `json:"role"` // "admin" or "user"
 }
 
 type ProfilePageData struct {
@@ -144,24 +131,14 @@ type AuthPageData struct {
 	ErrorMessage string
 }
 
-type ResolutionOption struct {
-	Quality    string `json:"quality"`
-	Title      string `json:"title"`
-	Path       string `json:"path"`
-	IsSelected bool   `json:"is_selected"`
-}
-
 type ModalPlayerData struct {
-	EpisodeNum        string
-	Title             string
-	VideoURL          string
-	RawIframe         template.HTML
-	Videos            []client.PlayerOption
-	GroupedVideos     map[string][]client.PlayerOption
-	Resolutions       []ResolutionOption
-	ActiveResolution  string
-	ActiveServerTitle string
-	Downloads         []client.DownloadFormat
+	EpisodeNum    string
+	Title         string
+	VideoURL      string
+	RawIframe     template.HTML
+	Videos        []client.PlayerOption
+	GroupedVideos map[string][]client.PlayerOption
+	Downloads     []client.DownloadFormat
 }
 
 var api *client.APIClient
@@ -180,184 +157,58 @@ var defaultHDHeroAnime = []client.AnimeItem{
 	{
 		Title:    "One Piece",
 		Slug:     "one-piece",
-		Img:      "https://wallpapercat.com/w/full/d/0/2/165219-3840x2160-desktop-4k-one-piece-background-image.jpg",
-		Episode:  "Episode 1100",
+		Img:      "https://wallpapercat.com/w/full/4/1/0/33422-3840x2160-desktop-4k-one-piece-background.jpg",
+		Episode:  "Episode 1178",
 		Score:    "8.9",
 		Type:     "TV Series",
 		Released: "1999",
 	},
 	{
-		Title:    "Solo Leveling",
-		Slug:     "solo-leveling",
-		Img:      "https://wallpapercat.com/w/full/9/a/c/1220973-3840x2160-desktop-4k-solo-leveling-wallpaper.jpg",
-		Episode:  "Episode 12",
+		Title:    "K-On!",
+		Slug:     "k-on",
+		Img:      "https://wallpapercat.com/w/full/7/d/a/816753-1920x1080-desktop-full-hd-k-on-wallpaper.jpg",
+		Episode:  "Episode 13",
 		Score:    "8.5",
 		Type:     "TV Series",
-		Released: "2024",
+		Released: "2009",
 	},
 	{
-		Title:    "Hunter x Hunter (2011)",
-		Slug:     "hunter-x-hunter-2011",
-		Img:      "https://wallpapercat.com/w/full/1/a/2/963212-3840x2160-desktop-4k-hunter-x-hunter-background-image.jpg",
-		Episode:  "Episode 148",
+		Title:    "One Piece: Wano Arc",
+		Slug:     "one-piece",
+		Img:      "https://wallpapercat.com/w/full/3/3/6/126937-3840x2160-desktop-4k-one-piece-background-image.jpg",
+		Episode:  "Episode 1071",
+		Score:    "9.1",
+		Type:     "TV Series",
+		Released: "2023",
+	},
+	{
+		Title:    "K-On! Live Concert",
+		Slug:     "k-on",
+		Img:      "https://wallpapercat.com/w/full/1/b/b/816777-3840x2160-desktop-4k-k-on-background-photo.jpg",
+		Episode:  "Special",
 		Score:    "8.8",
 		Type:     "TV Series",
 		Released: "2011",
 	},
 }
 
-const usersFilePath = "data/users.json"
-
 var (
-	usersDb     = make(map[string]User)
+	usersDb = map[string]User{
+		"admin": {
+			Username: "admin",
+			Password: "admin123",
+			Name:     "Administrator Nyamimo",
+			Role:     "admin",
+		},
+		"user": {
+			Username: "user",
+			Password: "user123",
+			Name:     "Member Nyamimo",
+			Role:     "user",
+		},
+	}
 	usersDbLock sync.RWMutex
-	dbInstance  *sql.DB
 )
-
-func initDB() {
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		dbURL = os.Getenv("POSTGRES_URL")
-	}
-	if dbURL == "" {
-		log.Println("[DB] No DATABASE_URL set. Using local JSON storage (data/users.json).")
-		return
-	}
-
-	db, err := sql.Open("postgres", dbURL)
-	if err != nil {
-		log.Printf("[DB Warning] Could not open PostgreSQL driver: %v", err)
-		return
-	}
-
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
-
-	if err := db.Ping(); err != nil {
-		log.Printf("[DB Warning] Could not ping PostgreSQL database: %v. Using local JSON storage.", err)
-		return
-	}
-
-	query := `
-	CREATE TABLE IF NOT EXISTS users (
-		username VARCHAR(100) PRIMARY KEY,
-		password TEXT NOT NULL,
-		name VARCHAR(100) NOT NULL,
-		role VARCHAR(50) NOT NULL,
-		created_at TIMESTAMPTZ NOT NULL,
-		watch_history JSONB DEFAULT '[]'
-	);
-	ALTER TABLE users ADD COLUMN IF NOT EXISTS watch_history JSONB DEFAULT '[]';`
-	if _, err := db.Exec(query); err != nil {
-		log.Printf("[DB Error] Failed to create users table in PostgreSQL: %v", err)
-		return
-	}
-
-	dbInstance = db
-	log.Println("[DB SUCCESS] Connected to Cloud PostgreSQL Database! User accounts will persist across Render restarts.")
-}
-
-func loadUsersFromDisk() {
-	usersDbLock.Lock()
-	defer usersDbLock.Unlock()
-
-	usersDb = make(map[string]User)
-
-	if _, err := os.Stat("data"); os.IsNotExist(err) {
-		_ = os.MkdirAll("data", 0755)
-	}
-
-	file, err := os.Open(usersFilePath)
-	if err == nil {
-		var loaded map[string]User
-		if err := json.NewDecoder(file).Decode(&loaded); err == nil {
-			for k, v := range loaded {
-				usersDb[strings.ToLower(k)] = v
-			}
-		}
-		file.Close()
-	}
-
-	if dbInstance != nil {
-		rows, err := dbInstance.Query("SELECT username, password, name, role, created_at, COALESCE(watch_history::text, '[]') FROM users")
-		if err == nil {
-			count := 0
-			for rows.Next() {
-				var u User
-				var historyJSON string
-				if err := rows.Scan(&u.Username, &u.Password, &u.Name, &u.Role, &u.CreatedAt, &historyJSON); err == nil {
-					if historyJSON != "" {
-						_ = json.Unmarshal([]byte(historyJSON), &u.WatchHistory)
-					}
-					usersDb[strings.ToLower(u.Username)] = u
-					count++
-				}
-			}
-			rows.Close()
-			log.Printf("[DB] Synced %d users from Cloud PostgreSQL Database", count)
-		}
-	}
-}
-
-func saveUsersToDiskLocked() {
-	if _, err := os.Stat("data"); os.IsNotExist(err) {
-		_ = os.MkdirAll("data", 0755)
-	}
-
-	data, err := json.MarshalIndent(usersDb, "", "  ")
-	if err == nil {
-		_ = os.WriteFile(usersFilePath, data, 0644)
-	}
-
-	if dbInstance != nil {
-		for _, u := range usersDb {
-			historyBytes, _ := json.Marshal(u.WatchHistory)
-			_, _ = dbInstance.Exec(`
-				INSERT INTO users (username, password, name, role, created_at, watch_history)
-				VALUES ($1, $2, $3, $4, $5, $6)
-				ON CONFLICT (username) DO UPDATE SET
-					password = EXCLUDED.password,
-					name = EXCLUDED.name,
-					role = EXCLUDED.role,
-					watch_history = EXCLUDED.watch_history;
-			`, strings.ToLower(u.Username), u.Password, u.Name, u.Role, u.CreatedAt, string(historyBytes))
-		}
-	}
-}
-
-func addWatchHistoryForUser(username string, item HistoryItem) {
-	usersDbLock.Lock()
-	defer usersDbLock.Unlock()
-
-	u, ok := usersDb[strings.ToLower(username)]
-	if !ok {
-		return
-	}
-
-	if item.WatchedAt.IsZero() {
-		item.WatchedAt = time.Now()
-	}
-	if item.Link == "" && item.Slug != "" {
-		item.Link = "/anime/" + item.Slug
-	}
-
-	var newHistory []HistoryItem
-	for _, h := range u.WatchHistory {
-		if h.Slug != item.Slug {
-			newHistory = append(newHistory, h)
-		}
-	}
-	newHistory = append([]HistoryItem{item}, newHistory...)
-	if len(newHistory) > 50 {
-		newHistory = newHistory[:50]
-	}
-
-	u.WatchHistory = newHistory
-	usersDb[strings.ToLower(username)] = u
-
-	saveUsersToDiskLocked()
-}
 
 func getLoggedInUser(r *http.Request) *User {
 	cookie, err := r.Cookie("user_session")
@@ -373,12 +224,6 @@ func getLoggedInUser(r *http.Request) *User {
 }
 
 func main() {
-	// Initialize Cloud DB connection if DATABASE_URL is set
-	initDB()
-
-	// Initialize users database (JSON + Cloud DB sync)
-	loadUsersFromDisk()
-
 	// Initialize API client with 10-minute cache TTL
 	api = client.NewAPIClient(10 * time.Minute)
 
@@ -421,11 +266,6 @@ func main() {
 	mux.HandleFunc("/api/notifications", handleNotifications)
 	mux.HandleFunc("/api/episode-modal", handleEpisodeModal)
 	mux.HandleFunc("/api/episode-inline", handleEpisodeInline)
-	mux.HandleFunc("/api/video-url", handleVideoURL)
-	mux.HandleFunc("/api/history/add", handleAPIHistoryAdd)
-	mux.HandleFunc("/api/history/clear", handleAPIHistoryClear)
-	mux.HandleFunc("/api/history/delete", handleAPIHistoryDelete)
-	mux.HandleFunc("/api/history/get", handleAPIHistoryGet)
 	// Static Files (Logo, Assets)
 	fs := http.FileServer(http.Dir("public"))
 	mux.Handle("/static/", http.StripPrefix("/static/", fs))
@@ -460,105 +300,6 @@ var funcMap = template.FuncMap{
 		count := api.GetTotalAnimeCount()
 		return fmt.Sprintf("%d+", count)
 	},
-	"timeAgo": func(t time.Time) string {
-		if t.IsZero() {
-			return "Baru saja"
-		}
-		diff := time.Since(t)
-		if diff < time.Minute {
-			return "Baru saja"
-		} else if diff < time.Hour {
-			m := int(diff.Minutes())
-			return fmt.Sprintf("%dm lalu", m)
-		} else if diff < 24*time.Hour {
-			h := int(diff.Hours())
-			return fmt.Sprintf("%dh lalu", h)
-		} else {
-			d := int(diff.Hours() / 24)
-			return fmt.Sprintf("%dd lalu", d)
-		}
-	},
-}
-
-func handleAPIHistoryAdd(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	user := getLoggedInUser(r)
-	if user == nil {
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "guest"})
-		return
-	}
-	var item HistoryItem
-	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-	addWatchHistoryForUser(user.Username, item)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-}
-
-func handleAPIHistoryClear(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	user := getLoggedInUser(r)
-	if user != nil {
-		usersDbLock.Lock()
-		u := usersDb[strings.ToLower(user.Username)]
-		u.WatchHistory = nil
-		usersDb[strings.ToLower(user.Username)] = u
-		saveUsersToDiskLocked()
-		usersDbLock.Unlock()
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "cleared"})
-}
-
-func handleAPIHistoryDelete(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	slug := r.URL.Query().Get("slug")
-	user := getLoggedInUser(r)
-	if user != nil && slug != "" {
-		usersDbLock.Lock()
-		u := usersDb[strings.ToLower(user.Username)]
-		var updated []HistoryItem
-		for _, h := range u.WatchHistory {
-			if h.Slug != slug {
-				updated = append(updated, h)
-			}
-		}
-		u.WatchHistory = updated
-		usersDb[strings.ToLower(user.Username)] = u
-		saveUsersToDiskLocked()
-		usersDbLock.Unlock()
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
-}
-
-func handleAPIHistoryGet(w http.ResponseWriter, r *http.Request) {
-	user := getLoggedInUser(r)
-	w.Header().Set("Content-Type", "application/json")
-	if user == nil {
-		json.NewEncoder(w).Encode([]HistoryItem{})
-		return
-	}
-	usersDbLock.RLock()
-	u := usersDb[strings.ToLower(user.Username)]
-	history := u.WatchHistory
-	usersDbLock.RUnlock()
-	if history == nil {
-		history = []HistoryItem{}
-	}
-	json.NewEncoder(w).Encode(history)
 }
 
 // Render Helper with layout
@@ -685,21 +426,6 @@ func handleAnimeDetail(w http.ResponseWriter, r *http.Request) {
 	if detail.Title == "" {
 		http.Error(w, "Anime not found", http.StatusNotFound)
 		return
-	}
-
-	if user := getLoggedInUser(r); user != nil {
-		epLabel := detail.Status
-		if len(detail.Episodes) > 0 {
-			epLabel = fmt.Sprintf("%d Episode", len(detail.Episodes))
-		}
-		addWatchHistoryForUser(user.Username, HistoryItem{
-			Title:     detail.Title,
-			Slug:      slug,
-			Episode:   epLabel,
-			Img:       detail.Img,
-			Link:      "/anime/" + slug,
-			WatchedAt: time.Now(),
-		})
 	}
 
 	if detail.Synopsis == "" && len(detail.Descriptions) > 0 {
@@ -1346,139 +1072,6 @@ func handleNotifications(w http.ResponseWriter, r *http.Request) {
 	renderPartial(w, "search_results.html", "search_results", data)
 }
 
-func buildModalPlayerData(epsDetail client.EpisodeDetailResponse, ep, title string) ModalPlayerData {
-	var selectedOpt *client.PlayerOption
-
-	// 1. Priority: Find 720p HD from reliable servers (Wibufile, DesuStream, Mega, VIP, Blogspot)
-	for i, v := range epsDetail.Videos {
-		tLower := strings.ToLower(v.Title)
-		if (strings.Contains(tLower, "720p") || strings.Contains(tLower, "mp4hd")) &&
-			(strings.Contains(tLower, "wibu") || strings.Contains(tLower, "desu") || strings.Contains(tLower, "mega") || strings.Contains(tLower, "vip") || strings.Contains(tLower, "blogspot")) {
-			selectedOpt = &epsDetail.Videos[i]
-			break
-		}
-	}
-
-	// 2. Priority: Find any 720p HD option
-	if selectedOpt == nil {
-		for i, v := range epsDetail.Videos {
-			tLower := strings.ToLower(v.Title)
-			if strings.Contains(tLower, "720p") || strings.Contains(tLower, "mp4hd") {
-				selectedOpt = &epsDetail.Videos[i]
-				break
-			}
-		}
-	}
-
-	// 3. Priority: Find 1080p or 480p
-	if selectedOpt == nil {
-		for i, v := range epsDetail.Videos {
-			tLower := strings.ToLower(v.Title)
-			if strings.Contains(tLower, "1080p") || strings.Contains(tLower, "480p") {
-				selectedOpt = &epsDetail.Videos[i]
-				break
-			}
-		}
-	}
-
-	// Fallback to first available option if no resolution match
-	if selectedOpt == nil && len(epsDetail.Videos) > 0 {
-		selectedOpt = &epsDetail.Videos[0]
-	}
-
-	var firstVideoURL string
-	var firstIframe template.HTML
-	var activeRes string = "720p HD"
-	var activeServerTitle string = "Server Utama"
-
-	if selectedOpt != nil {
-		activeServerTitle = selectedOpt.Title
-		var vidResp struct {
-			URL      string `json:"url"`
-			Response string `json:"response"`
-		}
-		_ = api.GetJSON(selectedOpt.Video, &vidResp)
-		firstVideoURL = vidResp.URL
-		firstIframe = template.HTML(vidResp.Response)
-
-		// Fallback auto-recovery if selected option returned empty stream
-		if firstVideoURL == "" && firstIframe == "" {
-			for _, v := range epsDetail.Videos {
-				if v.Video == selectedOpt.Video {
-					continue
-				}
-				var fallbackResp struct {
-					URL      string `json:"url"`
-					Response string `json:"response"`
-				}
-				if err := api.GetJSON(v.Video, &fallbackResp); err == nil && (fallbackResp.URL != "" || fallbackResp.Response != "") {
-					firstVideoURL = fallbackResp.URL
-					firstIframe = template.HTML(fallbackResp.Response)
-					activeServerTitle = v.Title
-					break
-				}
-			}
-		}
-	} else if epsDetail.VideoURL != "" && epsDetail.VideoURL != "belum tersedia (segera)" {
-		firstVideoURL = epsDetail.VideoURL
-	}
-
-	grouped := make(map[string][]client.PlayerOption)
-	var resolutions []ResolutionOption
-	resMap := make(map[string]bool)
-
-	for _, v := range epsDetail.Videos {
-		fields := strings.Fields(v.Title)
-		provider := "Server Video"
-		if len(fields) > 0 {
-			provider = fields[0]
-		}
-		grouped[provider] = append(grouped[provider], v)
-
-		// Parse quality tag
-		resTag := "HD"
-		tLower := strings.ToLower(v.Title)
-		if strings.Contains(tLower, "1080p") || strings.Contains(tLower, "fullhd") {
-			resTag = "1080p Full HD"
-		} else if strings.Contains(tLower, "720p") || strings.Contains(tLower, "mp4hd") {
-			resTag = "720p HD"
-		} else if strings.Contains(tLower, "480p") {
-			resTag = "480p SD"
-		} else if strings.Contains(tLower, "360p") {
-			resTag = "360p"
-		} else if strings.Contains(tLower, "4k") {
-			resTag = "4K"
-		}
-
-		if !resMap[v.Video] {
-			resMap[v.Video] = true
-			isSel := (selectedOpt != nil && selectedOpt.Video == v.Video)
-			if isSel {
-				activeRes = resTag
-			}
-			resolutions = append(resolutions, ResolutionOption{
-				Quality:    resTag,
-				Title:      v.Title,
-				Path:       v.Video,
-				IsSelected: isSel,
-			})
-		}
-	}
-
-	return ModalPlayerData{
-		EpisodeNum:        ep,
-		Title:             title,
-		VideoURL:          firstVideoURL,
-		RawIframe:         firstIframe,
-		Videos:            epsDetail.Videos,
-		GroupedVideos:     grouped,
-		Resolutions:       resolutions,
-		ActiveResolution:  activeRes,
-		ActiveServerTitle: activeServerTitle,
-		Downloads:         epsDetail.Downloads,
-	}
-}
-
 // HTMX Episode Modal Handler
 func handleEpisodeModal(w http.ResponseWriter, r *http.Request) {
 	detailEps := r.URL.Query().Get("detail_eps")
@@ -1488,7 +1081,41 @@ func handleEpisodeModal(w http.ResponseWriter, r *http.Request) {
 	var epsDetail client.EpisodeDetailResponse
 	_ = api.GetJSON(detailEps, &epsDetail)
 
-	data := buildModalPlayerData(epsDetail, ep, title)
+	var firstVideoURL string
+	var firstIframe template.HTML
+	if len(epsDetail.Videos) > 0 {
+		var vidResp struct {
+			URL      string `json:"url"`
+			Response string `json:"response"`
+		}
+		_ = api.GetJSON(epsDetail.Videos[0].Video, &vidResp)
+		firstVideoURL = vidResp.URL
+		firstIframe = template.HTML(vidResp.Response)
+	} else if epsDetail.VideoURL != "" && epsDetail.VideoURL != "belum tersedia (segera)" {
+		firstVideoURL = epsDetail.VideoURL
+	}
+
+	// Group videos by server provider name
+	grouped := make(map[string][]client.PlayerOption)
+	for _, v := range epsDetail.Videos {
+		fields := strings.Fields(v.Title)
+		provider := "Server Video"
+		if len(fields) > 0 {
+			provider = fields[0]
+		}
+		grouped[provider] = append(grouped[provider], v)
+	}
+
+	data := ModalPlayerData{
+		EpisodeNum:    ep,
+		Title:         title,
+		VideoURL:      firstVideoURL,
+		RawIframe:     firstIframe,
+		Videos:        epsDetail.Videos,
+		GroupedVideos: grouped,
+		Downloads:     epsDetail.Downloads,
+	}
+
 	renderPartial(w, "modal_player.html", "modal_player", data)
 }
 
@@ -1501,17 +1128,46 @@ func handleEpisodeInline(w http.ResponseWriter, r *http.Request) {
 	var epsDetail client.EpisodeDetailResponse
 	_ = api.GetJSON(detailEps, &epsDetail)
 
-	data := buildModalPlayerData(epsDetail, ep, title)
+	var firstVideoURL string
+	var firstIframe template.HTML
+	if len(epsDetail.Videos) > 0 {
+		var vidResp struct {
+			URL      string `json:"url"`
+			Response string `json:"response"`
+		}
+		_ = api.GetJSON(epsDetail.Videos[0].Video, &vidResp)
+		firstVideoURL = vidResp.URL
+		firstIframe = template.HTML(vidResp.Response)
+	} else if epsDetail.VideoURL != "" && epsDetail.VideoURL != "belum tersedia (segera)" {
+		firstVideoURL = epsDetail.VideoURL
+	}
+
+	grouped := make(map[string][]client.PlayerOption)
+	for _, v := range epsDetail.Videos {
+		fields := strings.Fields(v.Title)
+		provider := "Server Video"
+		if len(fields) > 0 {
+			provider = fields[0]
+		}
+		grouped[provider] = append(grouped[provider], v)
+	}
+
+	data := ModalPlayerData{
+		EpisodeNum:    ep,
+		Title:         title,
+		VideoURL:      firstVideoURL,
+		RawIframe:     firstIframe,
+		Videos:        epsDetail.Videos,
+		GroupedVideos: grouped,
+		Downloads:     epsDetail.Downloads,
+	}
+
 	renderPartial(w, "anime_detail.html", "inline_player_area", data)
 }
 
 // HTMX Video URL Switcher Handler
 func handleVideoURL(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
-	if path == "" {
-		http.Error(w, "Path parameter missing", http.StatusBadRequest)
-		return
-	}
 
 	var vidResp struct {
 		URL      string `json:"url"`
@@ -1665,25 +1321,25 @@ func handleLoginAPI(w http.ResponseWriter, r *http.Request) {
 	username := strings.ToLower(strings.TrimSpace(r.FormValue("username")))
 	password := strings.TrimSpace(r.FormValue("password"))
 
-	if username == "" || password == "" {
-		data := AuthPageData{
-			Title:        "Masuk Akun",
-			CurrentPage:  "login",
-			ErrorMessage: "Silakan masukkan username dan kata sandi kamu!",
-		}
-		renderPage(w, "login.html", data)
-		return
-	}
-
 	usersDbLock.RLock()
 	user, exists := usersDb[username]
 	usersDbLock.RUnlock()
 
 	if !exists || user.Password != password {
+		referer := r.Header.Get("Referer")
+		if referer != "" && !strings.Contains(referer, "/login") {
+			errMsg := url.QueryEscape("Username atau kata sandi salah. Gunakan admin/admin123 atau user/user123!")
+			sep := "?"
+			if strings.Contains(referer, "?") {
+				sep = "&"
+			}
+			http.Redirect(w, r, referer+sep+"login_error="+errMsg, http.StatusSeeOther)
+			return
+		}
 		data := AuthPageData{
 			Title:        "Masuk Akun",
 			CurrentPage:  "login",
-			ErrorMessage: "Username atau kata sandi tidak cocok. Silakan periksa kembali!",
+			ErrorMessage: "Username atau kata sandi salah. Gunakan admin/admin123 atau user/user123!",
 		}
 		renderPage(w, "login.html", data)
 		return
@@ -1693,16 +1349,15 @@ func handleLoginAPI(w http.ResponseWriter, r *http.Request) {
 		Name:     "user_session",
 		Value:    username,
 		Path:     "/",
-		MaxAge:   30 * 86400,
 		HttpOnly: true,
 	})
 
 	referer := r.Header.Get("Referer")
-	if referer == "" || strings.Contains(referer, "/login") || strings.Contains(referer, "/register") {
+	if referer == "" || strings.Contains(referer, "/login") {
 		if user.Role == "admin" {
 			referer = "/admin/carousel"
 		} else {
-			referer = "/profile"
+			referer = "/"
 		}
 	}
 	http.Redirect(w, r, referer, http.StatusSeeOther)
@@ -1713,13 +1368,11 @@ func handleGoogleLoginAPI(w http.ResponseWriter, r *http.Request) {
 	usersDbLock.Lock()
 	if _, exists := usersDb[username]; !exists {
 		usersDb[username] = User{
-			Username:  username,
-			Password:  "google_account",
-			Name:      "Pengguna Google",
-			Role:      "user",
-			CreatedAt: time.Now(),
+			Username: username,
+			Password: "google_account",
+			Name:     "Pengguna Google",
+			Role:     "user",
 		}
-		saveUsersToDiskLocked()
 	}
 	usersDbLock.Unlock()
 
@@ -1727,18 +1380,17 @@ func handleGoogleLoginAPI(w http.ResponseWriter, r *http.Request) {
 		Name:     "user_session",
 		Value:    username,
 		Path:     "/",
-		MaxAge:   30 * 86400,
 		HttpOnly: true,
 	})
 
-	http.Redirect(w, r, "/profile", http.StatusSeeOther)
+	referer := r.Header.Get("Referer")
+	if referer == "" || strings.Contains(referer, "/login") {
+		referer = "/"
+	}
+	http.Redirect(w, r, referer, http.StatusSeeOther)
 }
 
 func handleRegister(w http.ResponseWriter, r *http.Request) {
-	if getLoggedInUser(r) != nil {
-		http.Redirect(w, r, "/profile", http.StatusSeeOther)
-		return
-	}
 	renderPage(w, "register.html", AuthPageData{Title: "Daftar Akun Member", CurrentPage: "register"})
 }
 
@@ -1753,60 +1405,31 @@ func handleRegisterAPI(w http.ResponseWriter, r *http.Request) {
 	username := strings.ToLower(strings.TrimSpace(r.FormValue("username")))
 	password := strings.TrimSpace(r.FormValue("password"))
 
-	if name == "" || username == "" || password == "" {
-		renderPage(w, "register.html", AuthPageData{
-			Title:        "Daftar Akun Member",
-			CurrentPage:  "register",
-			ErrorMessage: "Nama Lengkap, Username, dan Password wajib diisi!",
-		})
-		return
-	}
-
-	if len(username) < 3 {
-		renderPage(w, "register.html", AuthPageData{
-			Title:        "Daftar Akun Member",
-			CurrentPage:  "register",
-			ErrorMessage: "Username minimal harus 3 karakter!",
-		})
-		return
-	}
-
-	if len(password) < 4 {
-		renderPage(w, "register.html", AuthPageData{
-			Title:        "Daftar Akun Member",
-			CurrentPage:  "register",
-			ErrorMessage: "Kata sandi (password) minimal harus 4 karakter!",
-		})
+	if username == "" || password == "" {
+		renderPage(w, "register.html", AuthPageData{Title: "Daftar Akun", CurrentPage: "register", ErrorMessage: "Mohon isi semua bidang formulir!"})
 		return
 	}
 
 	usersDbLock.Lock()
 	if _, exists := usersDb[username]; exists {
 		usersDbLock.Unlock()
-		renderPage(w, "register.html", AuthPageData{
-			Title:        "Daftar Akun Member",
-			CurrentPage:  "register",
-			ErrorMessage: fmt.Sprintf("Username '%s' sudah terdaftar! Gunakan username lain atau langsung masuk.", username),
-		})
+		renderPage(w, "register.html", AuthPageData{Title: "Daftar Akun", CurrentPage: "register", ErrorMessage: "Username sudah terdaftar! Gunakan username lain."})
 		return
 	}
 
 	newUser := User{
-		Username:  username,
-		Password:  password,
-		Name:      name,
-		Role:      "user",
-		CreatedAt: time.Now(),
+		Username: username,
+		Password: password,
+		Name:     name,
+		Role:     "user",
 	}
 	usersDb[username] = newUser
-	saveUsersToDiskLocked()
 	usersDbLock.Unlock()
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "user_session",
 		Value:    username,
 		Path:     "/",
-		MaxAge:   30 * 86400,
 		HttpOnly: true,
 	})
 
