@@ -4,16 +4,15 @@ Aplikasi streaming anime modern, cepat, dan ringan berbasis **Next.js & Go + HTM
 
 ## 🚀 Quick Deployment Guide (Gratis 100%)
 
-### Opsi 1: Deploy Gratis ke Vercel (Rekomendasi Utama)
+### Opsi 1: Deploy Gratis ke Render.com (Rekomendasi Utama) 🚀
 
-Repository ini (`dreamzz2nd/nyamimo`) sudah 100% kompatibel dan siap di-deploy secara instan ke Vercel:
+Repository ini (`dreamzz2nd/nyamimo`) sudah 100% dilengkapi dengan `Dockerfile` & `render.yaml` siap-pakai di **Render.com**:
 
-1. Buka [Dashboard Vercel Import](https://vercel.com/new).
-2. Pilih akun GitHub **`dreamzz2nd`** dan klik **Import** pada repository **`nyamimo`**.
-3. Klik tombol **Deploy**!
-4. Website Nyamimo langsung live dengan domain gratis `nyamimo.vercel.app` & HTTPS SSL otomatis.
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fdreamzz2nd%2Fnyamimo)
+1. Buka [Dashboard Render New Web Service](https://dashboard.render.com/web/new).
+2. Hubungkan akun GitHub **`dreamzz2nd`** dan pilih repository **`nyamimo`**.
+3. Render akan otomatis mendeteksi **Docker** dan memilih paket gratis **$0 / month**.
+4. Klik tombol **Deploy web service**!
+5. Website Nyamimo langsung live dengan domain gratis `nyamimo.onrender.com` & HTTPS SSL otomatis.
 
 ---
 
