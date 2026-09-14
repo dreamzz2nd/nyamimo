@@ -4,9 +4,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{if .Title}}{{.Title}} - Nyamimo{{else}}Nyamimo - Stream Anime Sub Indo Gratis HD{{end}}</title>
-    <meta name="description" content="Nonton anime subtitle Indonesia gratis tanpa iklan kualitas HD di Nyamimo.">
-    <link rel="shortcut icon" href="/static/logo.png">
+    
+    <!-- Primary Meta Tags -->
+    <title>{{if .Title}}{{.Title}} - Nyamimo{{else}}Nyamimo - Nonton Anime Subtitle Indonesia Gratis HD{{end}}</title>
+    <meta name="description" content="{{if .MetaDescription}}{{.MetaDescription}}{{else}}Nonton anime subtitle Indonesia gratis tanpa iklan kualitas HD 1080p di Nyamimo. Update episode terbaru setiap hari!{{end}}">
+    <meta name="keywords" content="{{if .MetaKeywords}}{{.MetaKeywords}}{{else}}nyamimo, nonton anime sub indo, stream anime gratis, anime subtitle indonesia, anime sub indo hd, download anime sub indo, animeindo, otakudesu, bstation, anime 2026{{end}}">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="author" content="Nyamimo Team">
+    <meta name="theme-color" content="#FFCC00">
+    <link rel="canonical" href="{{if .CanonicalURL}}{{.CanonicalURL}}{{else}}https://nyamimo.onrender.com{{end}}">
+    <link rel="shortcut icon" href="/static/logo.png" type="image/png">
+    <link rel="apple-touch-icon" href="/static/logo.png">
+
+    <!-- Open Graph / Facebook / WhatsApp / Discord / Telegram -->
+    <meta property="og:locale" content="id_ID">
+    <meta property="og:type" content="{{if .OgType}}{{.OgType}}{{else}}website{{end}}">
+    <meta property="og:site_name" content="Nyamimo Anime Stream">
+    <meta property="og:title" content="{{if .Title}}{{.Title}} - Nyamimo{{else}}Nyamimo - Nonton Anime Subtitle Indonesia Gratis HD{{end}}">
+    <meta property="og:description" content="{{if .MetaDescription}}{{.MetaDescription}}{{else}}Nonton anime subtitle Indonesia gratis tanpa iklan kualitas HD di Nyamimo. Update episode terbaru setiap hari!{{end}}">
+    <meta property="og:url" content="{{if .CanonicalURL}}{{.CanonicalURL}}{{else}}https://nyamimo.onrender.com{{end}}">
+    <meta property="og:image" content="{{if .OgImage}}{{.OgImage}}{{else}}https://nyamimo.onrender.com/static/logo.png{{end}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="{{if .Title}}{{.Title}}{{else}}Nyamimo Anime Stream{{end}}">
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{if .Title}}{{.Title}} - Nyamimo{{else}}Nyamimo - Nonton Anime Subtitle Indonesia Gratis HD{{end}}">
+    <meta name="twitter:description" content="{{if .MetaDescription}}{{.MetaDescription}}{{else}}Nonton anime subtitle Indonesia gratis tanpa iklan kualitas HD di Nyamimo. Update episode terbaru setiap hari!{{end}}">
+    <meta name="twitter:image" content="{{if .OgImage}}{{.OgImage}}{{else}}https://nyamimo.onrender.com/static/logo.png{{end}}">
+
+    <!-- Schema.org JSON-LD Structured Data -->
+    {{if .JSONLD}}
+    <script type="application/ld+json">
+    {{.JSONLD}}
+    </script>
+    {{else}}
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Nyamimo",
+      "alternateName": ["Nyamimo Anime", "Nyamimo Stream"],
+      "url": "https://nyamimo.onrender.com",
+      "description": "Nonton anime subtitle Indonesia gratis tanpa iklan kualitas HD di Nyamimo.",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://nyamimo.onrender.com/search?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+    {{end}}
     
     <!-- Google Fonts: Space Grotesk & Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">

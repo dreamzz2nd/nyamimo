@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -16,6 +17,15 @@ import (
 	"nyamimo-go/client"
 )
 
+type SEOData struct {
+	MetaDescription string
+	MetaKeywords    string
+	OgImage         string
+	CanonicalURL    string
+	OgType          string
+	JSONLD          template.JS
+}
+
 type LazySectionConfig struct {
 	ID    string
 	Title string
@@ -30,6 +40,7 @@ type SectionViewData struct {
 }
 
 type HomePageData struct {
+	SEOData
 	Title            string
 	CurrentPage      string
 	User             *User
@@ -40,6 +51,7 @@ type HomePageData struct {
 }
 
 type DetailPageData struct {
+	SEOData
 	Title              string
 	CurrentPage        string
 	User               *User
@@ -57,6 +69,7 @@ type DetailPageData struct {
 }
 
 type PopularPageData struct {
+	SEOData
 	Title        string
 	CurrentPage  string
 	User         *User
@@ -67,6 +80,7 @@ type PopularPageData struct {
 }
 
 type GenresPageData struct {
+	SEOData
 	Title          string
 	CurrentPage    string
 	User           *User
@@ -77,6 +91,7 @@ type GenresPageData struct {
 }
 
 type TypePageData struct {
+	SEOData
 	Title       string
 	CurrentPage string
 	User        *User
@@ -86,6 +101,7 @@ type TypePageData struct {
 }
 
 type SchedulePageData struct {
+	SEOData
 	Title       string
 	CurrentPage string
 	User        *User
@@ -101,12 +117,14 @@ type User struct {
 }
 
 type ProfilePageData struct {
+	SEOData
 	Title       string
 	CurrentPage string
 	User        *User
 }
 
 type AuthPageData struct {
+	SEOData
 	Title        string
 	CurrentPage  string
 	User         *User
@@ -223,6 +241,10 @@ func main() {
 	mux.HandleFunc("/schedule", handleSchedule)
 	mux.HandleFunc("/profile", handleProfile)
 	mux.HandleFunc("/admin/carousel", handleAdminCarousel)
+
+	// SEO Routes
+	mux.HandleFunc("/robots.txt", handleRobotsTXT)
+	mux.HandleFunc("/sitemap.xml", handleSitemapXML)
 
 	// Auth Routes
 	mux.HandleFunc("/login", handleLogin)
@@ -354,6 +376,13 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := HomePageData{
+		SEOData: SEOData{
+			MetaDescription: "Nonton anime subtitle Indonesia gratis tanpa iklan kualitas HD 1080p & 4K di Nyamimo. Update episode terbaru setiap hari, player lancar & hemat kuota.",
+			MetaKeywords:    "nyamimo, nonton anime sub indo, stream anime gratis, anime subtitle indonesia, anime sub indo hd, download anime sub indo, animeindo, otakudesu, bstation, anime 2026",
+			OgImage:         "https://nyamimo.onrender.com/static/logo.png",
+			CanonicalURL:    "https://nyamimo.onrender.com/",
+			OgType:          "website",
+		},
 		Title:       "Nonton Anime Subtitle Indonesia Gratis HD",
 		CurrentPage: "home",
 		User:        getLoggedInUser(r),
@@ -513,8 +542,22 @@ func handleAnimeDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	synopsisClean := detail.Synopsis
+	if len(synopsisClean) > 160 {
+		synopsisClean = synopsisClean[:157] + "..."
+	}
+	synopsisClean = strings.ReplaceAll(synopsisClean, "\n", " ")
+
 	data := DetailPageData{
-		Title:              detail.Title,
+		SEOData: SEOData{
+			MetaDescription: fmt.Sprintf("Nonton streaming anime %s Subtitle Indonesia gratis kualitas HD. %s", detail.Title, synopsisClean),
+			MetaKeywords:    fmt.Sprintf("%s, nonton %s sub indo, stream %s, download %s sub indo hd, nyamimo %s", detail.Title, detail.Title, detail.Title, detail.Title, detail.Title),
+			OgImage:         detail.Img,
+			CanonicalURL:    "https://nyamimo.onrender.com/anime/" + slug,
+			OgType:          "video.other",
+			JSONLD:          generateAnimeDetailJSONLD(detail, slug),
+		},
+		Title:              "Nonton " + detail.Title + " Sub Indo HD",
 		CurrentPage:        "detail",
 		User:               getLoggedInUser(r),
 		Slug:               slug,
@@ -531,6 +574,66 @@ func handleAnimeDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	renderPage(w, "anime_detail.html", data)
+}
+
+func generateAnimeDetailJSONLD(detail client.AnimeDetailData, slug string) template.JS {
+	var genreTitles []string
+	for _, g := range detail.Genres {
+		if g.Title != "" {
+			genreTitles = append(genreTitles, g.Title)
+		}
+	}
+	genresJSON, _ := json.Marshal(genreTitles)
+
+	synopsisClean := strings.ReplaceAll(detail.Synopsis, "\"", "\\\"")
+	synopsisClean = strings.ReplaceAll(synopsisClean, "\n", " ")
+	titleEsc := strings.ReplaceAll(detail.Title, "\"", "\\\"")
+
+	jsonStr := fmt.Sprintf(`{
+	  "@context": "https://schema.org",
+	  "@graph": [
+	    {
+	      "@type": "TVSeries",
+	      "name": "%s",
+	      "url": "https://nyamimo.onrender.com/anime/%s",
+	      "image": "%s",
+	      "description": "%s",
+	      "genre": %s,
+	      "aggregateRating": {
+	        "@type": "AggregateRating",
+	        "ratingValue": "%s",
+	        "bestRating": "10",
+	        "worstRating": "1",
+	        "ratingCount": "100"
+	      }
+	    },
+	    {
+	      "@type": "BreadcrumbList",
+	      "itemListElement": [
+	        {
+	          "@type": "ListItem",
+	          "position": 1,
+	          "name": "Beranda",
+	          "item": "https://nyamimo.onrender.com/"
+	        },
+	        {
+	          "@type": "ListItem",
+	          "position": 2,
+	          "name": "Nonton Anime",
+	          "item": "https://nyamimo.onrender.com/popular"
+	        },
+	        {
+	          "@type": "ListItem",
+	          "position": 3,
+	          "name": "%s",
+	          "item": "https://nyamimo.onrender.com/anime/%s"
+	        }
+	      ]
+	    }
+	  ]
+	}`, titleEsc, slug, detail.Img, synopsisClean, string(genresJSON), detail.Score, titleEsc, slug)
+
+	return template.JS(jsonStr)
 }
 
 func handlePopular(w http.ResponseWriter, r *http.Request) {
@@ -559,8 +662,16 @@ func handlePopular(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := PopularPageData{
-		Title:        "Browse & Popular Anime",
+		SEOData: SEOData{
+			MetaDescription: "Daftar anime paling populer, trending, dan terfavorit minggu ini dengan subtitle Indonesia di Nyamimo.",
+			MetaKeywords:    "anime populer sub indo, trending anime, top anime 2026, nyamimo anime popular",
+			OgImage:         "https://nyamimo.onrender.com/static/logo.png",
+			CanonicalURL:    "https://nyamimo.onrender.com/popular",
+			OgType:          "website",
+		},
+		Title:        "Browse & Popular Anime Sub Indo",
 		CurrentPage:  "popular",
+		User:         getLoggedInUser(r),
 		CurrentOrder: order,
 		Orders:       ordersResp.Data,
 		AnimeList:    listResp.Data,
@@ -574,8 +685,16 @@ func handleGenres(w http.ResponseWriter, r *http.Request) {
 	_ = api.GetJSON("/genres", &genresResp)
 
 	data := GenresPageData{
-		Title:       "Daftar Genre Anime",
+		SEOData: SEOData{
+			MetaDescription: "Jelajahi anime berdasarkan genre favoritmu: Action, Romance, Isekai, Comedy, Fantasy, Slice of Life di Nyamimo.",
+			MetaKeywords:    "genre anime sub indo, anime action sub indo, anime isekai, anime romance sub indo, nyamimo genres",
+			OgImage:         "https://nyamimo.onrender.com/static/logo.png",
+			CanonicalURL:    "https://nyamimo.onrender.com/genres",
+			OgType:          "website",
+		},
+		Title:       "Daftar Genre Anime Sub Indo",
 		CurrentPage: "genres",
+		User:        getLoggedInUser(r),
 		Genres:      genresResp.Data,
 	}
 
@@ -605,8 +724,16 @@ func handleGenreDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := GenresPageData{
-		Title:          "Genre " + id,
+		SEOData: SEOData{
+			MetaDescription: fmt.Sprintf("Kumpulan anime genre %s subtitle Indonesia gratis kualitas HD di Nyamimo.", id),
+			MetaKeywords:    fmt.Sprintf("anime %s, anime genre %s sub indo, stream %s sub indo, nyamimo %s", id, id, id, id),
+			OgImage:         "https://nyamimo.onrender.com/static/logo.png",
+			CanonicalURL:    "https://nyamimo.onrender.com/genres/" + id,
+			OgType:          "website",
+		},
+		Title:          "Anime Genre " + id + " Sub Indo",
 		CurrentPage:    "genres",
+		User:           getLoggedInUser(r),
 		CurrentGenreID: id,
 		SelectedGenre:  selected,
 		Genres:         genresResp.Data,
@@ -635,8 +762,16 @@ func handleTypeDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := TypePageData{
-		Title:       "Format Tipe: " + strings.ToUpper(t),
+		SEOData: SEOData{
+			MetaDescription: fmt.Sprintf("Daftar lengkap anime format %s subtitle Indonesia gratis kualitas HD di Nyamimo.", strings.ToUpper(t)),
+			MetaKeywords:    fmt.Sprintf("anime format %s, anime %s sub indo, stream anime %s, nyamimo %s", t, t, t, t),
+			OgImage:         "https://nyamimo.onrender.com/static/logo.png",
+			CanonicalURL:    "https://nyamimo.onrender.com/type/" + t,
+			OgType:          "website",
+		},
+		Title:       "Format Anime: " + strings.ToUpper(t) + " Sub Indo",
 		CurrentPage: "type",
+		User:        getLoggedInUser(r),
 		CurrentType: t,
 		TypeName:    strings.ToUpper(t),
 		AnimeList:   listResp.Data,
@@ -693,8 +828,16 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := SchedulePageData{
-		Title:       "Jadwal Rilis Anime",
+		SEOData: SEOData{
+			MetaDescription: "Jadwal tayang anime harian (Senin - Minggu) subtitle Indonesia terbaru lengkap dengan jam rilis WIB di Nyamimo.",
+			MetaKeywords:    "jadwal anime sub indo, jadwal tayang anime, rilis anime harian, nyamimo jadwal",
+			OgImage:         "https://nyamimo.onrender.com/static/logo.png",
+			CanonicalURL:    "https://nyamimo.onrender.com/schedule",
+			OgType:          "website",
+		},
+		Title:       "Jadwal Rilis Anime Sub Indo Harian",
 		CurrentPage: "schedule",
+		User:        getLoggedInUser(r),
 		CurrentDay:  day,
 		AnimeList:   list,
 	}
@@ -705,6 +848,13 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 func handleProfile(w http.ResponseWriter, r *http.Request) {
 	user := getLoggedInUser(r)
 	data := ProfilePageData{
+		SEOData: SEOData{
+			MetaDescription: "Profil Pengguna dan Daftar Anime Favorit di Nyamimo.",
+			MetaKeywords:    "nyamimo profile, anime bookmark, favorit anime",
+			OgImage:         "https://nyamimo.onrender.com/static/logo.png",
+			CanonicalURL:    "https://nyamimo.onrender.com/profile",
+			OgType:          "website",
+		},
 		Title:       "My List & Profil Saya",
 		CurrentPage: "profile",
 		User:        user,
@@ -751,8 +901,16 @@ func handleSearchPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := PopularPageData{
+		SEOData: SEOData{
+			MetaDescription: fmt.Sprintf("Hasil pencarian anime untuk '%s' subtitle Indonesia gratis di Nyamimo.", q),
+			MetaKeywords:    fmt.Sprintf("nonton %s sub indo, cari anime %s, %s sub indo, nyamimo search", q, q, q),
+			OgImage:         "https://nyamimo.onrender.com/static/logo.png",
+			CanonicalURL:    "https://nyamimo.onrender.com/search?q=" + url.QueryEscape(q),
+			OgType:          "website",
+		},
 		Title:        "Hasil Pencarian: " + q,
 		CurrentPage:  "search",
+		User:         getLoggedInUser(r),
 		CurrentOrder: "",
 		Orders:       nil,
 		AnimeList:    results,
@@ -760,6 +918,85 @@ func handleSearchPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	renderPage(w, "popular.html", data)
+}
+
+func handleRobotsTXT(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	fmt.Fprintf(w, `User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://nyamimo.onrender.com/sitemap.xml
+`)
+}
+
+func handleSitemapXML(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+
+	baseUrl := "https://nyamimo.onrender.com"
+	now := time.Now().Format("2006-01-02")
+
+	var sb strings.Builder
+	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
+	sb.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
+
+	pages := []struct {
+		loc        string
+		priority   string
+		changefreq string
+	}{
+		{"/", "1.0", "daily"},
+		{"/popular", "0.9", "daily"},
+		{"/schedule", "0.8", "daily"},
+		{"/genres", "0.7", "weekly"},
+		{"/type/tv", "0.7", "weekly"},
+		{"/type/movie", "0.7", "weekly"},
+	}
+
+	for _, p := range pages {
+		sb.WriteString(fmt.Sprintf(`  <url>
+    <loc>%s%s</loc>
+    <lastmod>%s</lastmod>
+    <changefreq>%s</changefreq>
+    <priority>%s</priority>
+  </url>`+"\n", baseUrl, p.loc, now, p.changefreq, p.priority))
+	}
+
+	var ongoingResp client.AnimeListResponse
+	if err := api.GetJSON("/ongoing-anime", &ongoingResp); err == nil {
+		for _, item := range ongoingResp.Data {
+			slug := client.GetAnimeSlug(item)
+			if slug != "" {
+				sb.WriteString(fmt.Sprintf(`  <url>
+    <loc>%s/anime/%s</loc>
+    <lastmod>%s</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>`+"\n", baseUrl, slug, now))
+			}
+		}
+	}
+
+	var completedResp client.AnimeListResponse
+	if err := api.GetJSON("/completed-anime", &completedResp); err == nil {
+		for _, item := range completedResp.Data {
+			slug := client.GetAnimeSlug(item)
+			if slug != "" {
+				sb.WriteString(fmt.Sprintf(`  <url>
+    <loc>%s/anime/%s</loc>
+    <lastmod>%s</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`+"\n", baseUrl, slug, now))
+			}
+		}
+	}
+
+	sb.WriteString(`</urlset>`)
+	io.WriteString(w, sb.String())
 }
 
 // HTMX Search Suggest Handler
