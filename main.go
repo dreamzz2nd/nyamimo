@@ -131,14 +131,23 @@ type AuthPageData struct {
 	ErrorMessage string
 }
 
+type ResolutionOption struct {
+	Quality    string `json:"quality"`
+	Title      string `json:"title"`
+	Path       string `json:"path"`
+	IsSelected bool   `json:"is_selected"`
+}
+
 type ModalPlayerData struct {
-	EpisodeNum    string
-	Title         string
-	VideoURL      string
-	RawIframe     template.HTML
-	Videos        []client.PlayerOption
-	GroupedVideos map[string][]client.PlayerOption
-	Downloads     []client.DownloadFormat
+	EpisodeNum        string
+	Title             string
+	VideoURL          string
+	RawIframe         template.HTML
+	Videos            []client.PlayerOption
+	GroupedVideos     map[string][]client.PlayerOption
+	Resolutions       []ResolutionOption
+	ActiveServerTitle string
+	Downloads         []client.DownloadFormat
 }
 
 var api *client.APIClient
@@ -266,6 +275,8 @@ func main() {
 	mux.HandleFunc("/api/notifications", handleNotifications)
 	mux.HandleFunc("/api/episode-modal", handleEpisodeModal)
 	mux.HandleFunc("/api/episode-inline", handleEpisodeInline)
+	mux.HandleFunc("/api/video-url", handleVideoURL)
+	mux.HandleFunc("/api/proxy-player", handleProxyPlayer)
 	// Static Files (Logo, Assets)
 	fs := http.FileServer(http.Dir("public"))
 	mux.Handle("/static/", http.StripPrefix("/static/", fs))
@@ -1072,6 +1083,169 @@ func handleNotifications(w http.ResponseWriter, r *http.Request) {
 	renderPartial(w, "search_results.html", "search_results", data)
 }
 
+func formatPlayerHTML(rawIframe template.HTML, videoURL string) (template.HTML, string) {
+	rawStr := string(rawIframe)
+
+	// 1. Pixeldrain (Convert webpage URL/direct file to HTML5 Video element with CORS enabled)
+	pixeldrainID := ""
+	if strings.Contains(videoURL, "pixeldrain.com/u/") {
+		parts := strings.Split(videoURL, "/u/")
+		if len(parts) > 1 {
+			pixeldrainID = strings.Split(parts[1], "/")[0]
+		}
+	} else if strings.Contains(rawStr, "pixeldrain.com/u/") {
+		re := regexp.MustCompile(`pixeldrain\.com/u/([a-zA-Z0-9]+)`)
+		m := re.FindStringSubmatch(rawStr)
+		if len(m) > 1 {
+			pixeldrainID = m[1]
+		}
+	} else if strings.Contains(videoURL, "pixeldrain.com/api/file/") {
+		parts := strings.Split(videoURL, "/api/file/")
+		if len(parts) > 1 {
+			pixeldrainID = parts[1]
+		}
+	}
+
+	if pixeldrainID != "" {
+		directURL := fmt.Sprintf("https://pixeldrain.com/api/file/%s", pixeldrainID)
+		html := fmt.Sprintf(`
+		<video controls autoplay class="w-full h-full object-contain bg-black" poster="">
+			<source src="%s" type="video/mp4">
+			Browser kamu tidak mendukung pemutar video HTML5.
+		</video>`, directURL)
+		return template.HTML(html), directURL
+	}
+
+	// 2. Vidlion / Vidhide shortcode [vidlion id=XYZ]
+	if strings.Contains(rawStr, "[vidlion id=") {
+		re := regexp.MustCompile(`\[vidlion id=([a-zA-Z0-9]+)\]`)
+		m := re.FindStringSubmatch(rawStr)
+		if len(m) > 1 {
+			vidID := m[1]
+			embedURL := fmt.Sprintf("https://vidhidepro.com/v/%s", vidID)
+			html := fmt.Sprintf(`
+			<iframe src="%s" class="w-full h-full border-0" allowfullscreen="true" webkitallowfullscreen="true" mozallowfullscreen="true" allow="fullscreen; autoplay; encrypted-media"></iframe>`, embedURL)
+			return template.HTML(html), embedURL
+		}
+	}
+
+	// 3. Blogger / Blogspot Proxy bypass for CORP headers
+	if strings.Contains(videoURL, "blogger.com/video.g?token=") || strings.Contains(rawStr, "blogger.com/video.g?token=") {
+		token := ""
+		if strings.Contains(videoURL, "token=") {
+			parts := strings.Split(videoURL, "token=")
+			if len(parts) > 1 {
+				token = parts[1]
+			}
+		} else {
+			re := regexp.MustCompile(`token=([a-zA-Z0-9_-]+)`)
+			m := re.FindStringSubmatch(rawStr)
+			if len(m) > 1 {
+				token = m[1]
+			}
+		}
+		if token != "" {
+			proxyURL := fmt.Sprintf("/api/proxy-player?token=%s", url.QueryEscape(token))
+			html := fmt.Sprintf(`
+			<iframe src="%s" class="w-full h-full border-0" allowfullscreen="true" webkitallowfullscreen="true" mozallowfullscreen="true" allow="fullscreen; autoplay; encrypted-media"></iframe>`, proxyURL)
+			return template.HTML(html), proxyURL
+		}
+	}
+
+	// 4. Default iframe fallback
+	if rawStr != "" && strings.Contains(rawStr, "<iframe") {
+		return rawIframe, videoURL
+	}
+
+	if videoURL != "" {
+		html := fmt.Sprintf(`
+		<iframe src="%s" class="w-full h-full border-0" allowfullscreen="true" webkitallowfullscreen="true" mozallowfullscreen="true" allow="fullscreen; autoplay; encrypted-media"></iframe>`, videoURL)
+		return template.HTML(html), videoURL
+	}
+
+	return "", ""
+}
+
+func buildModalPlayerData(epsDetail client.EpisodeDetailResponse, ep, title string) ModalPlayerData {
+	var firstVideoURL string
+	var firstIframe template.HTML
+	var activeServerTitle string = "Server Utama"
+
+	// Try server options in provider's order (Option 0 = Blogspot, Option 1 = Premium, Option 2 = Vidhide, etc.)
+	if len(epsDetail.Videos) > 0 {
+		for _, v := range epsDetail.Videos {
+			var vidResp struct {
+				URL      string `json:"url"`
+				Response string `json:"response"`
+			}
+			if err := api.GetJSON(v.Video, &vidResp); err == nil {
+				formattedIframe, formattedURL := formatPlayerHTML(template.HTML(vidResp.Response), vidResp.URL)
+				if formattedIframe != "" || formattedURL != "" {
+					firstIframe = formattedIframe
+					firstVideoURL = formattedURL
+					activeServerTitle = v.Title
+					break
+				}
+			}
+		}
+	} else if epsDetail.VideoURL != "" && epsDetail.VideoURL != "belum tersedia (segera)" {
+		formattedIframe, formattedURL := formatPlayerHTML("", epsDetail.VideoURL)
+		firstIframe = formattedIframe
+		firstVideoURL = formattedURL
+	}
+
+	grouped := make(map[string][]client.PlayerOption)
+	var resolutions []ResolutionOption
+	resMap := make(map[string]bool)
+
+	for _, v := range epsDetail.Videos {
+		fields := strings.Fields(v.Title)
+		provider := "Server Video"
+		if len(fields) > 0 {
+			provider = fields[0]
+		}
+		grouped[provider] = append(grouped[provider], v)
+
+		resTag := "HD"
+		tLower := strings.ToLower(v.Title)
+		if strings.Contains(tLower, "1080p") || strings.Contains(tLower, "fullhd") {
+			resTag = "1080p Full HD"
+		} else if strings.Contains(tLower, "720p") || strings.Contains(tLower, "mp4hd") {
+			resTag = "720p HD"
+		} else if strings.Contains(tLower, "480p") {
+			resTag = "480p SD"
+		} else if strings.Contains(tLower, "360p") {
+			resTag = "360p"
+		} else if strings.Contains(tLower, "4k") {
+			resTag = "4K"
+		} else if strings.Contains(tLower, "blogspot") {
+			resTag = "Blogspot HD"
+		}
+
+		if !resMap[v.Video] {
+			resMap[v.Video] = true
+			resolutions = append(resolutions, ResolutionOption{
+				Quality:    resTag,
+				Title:      v.Title,
+				Path:       v.Video,
+				IsSelected: (v.Title == activeServerTitle),
+			})
+		}
+	}
+
+	return ModalPlayerData{
+		EpisodeNum:        ep,
+		Title:             title,
+		VideoURL:          firstVideoURL,
+		RawIframe:         firstIframe,
+		Videos:            epsDetail.Videos,
+		GroupedVideos:     grouped,
+		Resolutions:       resolutions,
+		ActiveServerTitle: activeServerTitle,
+		Downloads:         epsDetail.Downloads,
+	}
+}
+
 // HTMX Episode Modal Handler
 func handleEpisodeModal(w http.ResponseWriter, r *http.Request) {
 	detailEps := r.URL.Query().Get("detail_eps")
@@ -1081,41 +1255,7 @@ func handleEpisodeModal(w http.ResponseWriter, r *http.Request) {
 	var epsDetail client.EpisodeDetailResponse
 	_ = api.GetJSON(detailEps, &epsDetail)
 
-	var firstVideoURL string
-	var firstIframe template.HTML
-	if len(epsDetail.Videos) > 0 {
-		var vidResp struct {
-			URL      string `json:"url"`
-			Response string `json:"response"`
-		}
-		_ = api.GetJSON(epsDetail.Videos[0].Video, &vidResp)
-		firstVideoURL = vidResp.URL
-		firstIframe = template.HTML(vidResp.Response)
-	} else if epsDetail.VideoURL != "" && epsDetail.VideoURL != "belum tersedia (segera)" {
-		firstVideoURL = epsDetail.VideoURL
-	}
-
-	// Group videos by server provider name
-	grouped := make(map[string][]client.PlayerOption)
-	for _, v := range epsDetail.Videos {
-		fields := strings.Fields(v.Title)
-		provider := "Server Video"
-		if len(fields) > 0 {
-			provider = fields[0]
-		}
-		grouped[provider] = append(grouped[provider], v)
-	}
-
-	data := ModalPlayerData{
-		EpisodeNum:    ep,
-		Title:         title,
-		VideoURL:      firstVideoURL,
-		RawIframe:     firstIframe,
-		Videos:        epsDetail.Videos,
-		GroupedVideos: grouped,
-		Downloads:     epsDetail.Downloads,
-	}
-
+	data := buildModalPlayerData(epsDetail, ep, title)
 	renderPartial(w, "modal_player.html", "modal_player", data)
 }
 
@@ -1128,46 +1268,17 @@ func handleEpisodeInline(w http.ResponseWriter, r *http.Request) {
 	var epsDetail client.EpisodeDetailResponse
 	_ = api.GetJSON(detailEps, &epsDetail)
 
-	var firstVideoURL string
-	var firstIframe template.HTML
-	if len(epsDetail.Videos) > 0 {
-		var vidResp struct {
-			URL      string `json:"url"`
-			Response string `json:"response"`
-		}
-		_ = api.GetJSON(epsDetail.Videos[0].Video, &vidResp)
-		firstVideoURL = vidResp.URL
-		firstIframe = template.HTML(vidResp.Response)
-	} else if epsDetail.VideoURL != "" && epsDetail.VideoURL != "belum tersedia (segera)" {
-		firstVideoURL = epsDetail.VideoURL
-	}
-
-	grouped := make(map[string][]client.PlayerOption)
-	for _, v := range epsDetail.Videos {
-		fields := strings.Fields(v.Title)
-		provider := "Server Video"
-		if len(fields) > 0 {
-			provider = fields[0]
-		}
-		grouped[provider] = append(grouped[provider], v)
-	}
-
-	data := ModalPlayerData{
-		EpisodeNum:    ep,
-		Title:         title,
-		VideoURL:      firstVideoURL,
-		RawIframe:     firstIframe,
-		Videos:        epsDetail.Videos,
-		GroupedVideos: grouped,
-		Downloads:     epsDetail.Downloads,
-	}
-
+	data := buildModalPlayerData(epsDetail, ep, title)
 	renderPartial(w, "anime_detail.html", "inline_player_area", data)
 }
 
 // HTMX Video URL Switcher Handler
 func handleVideoURL(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Missing path parameter", http.StatusBadRequest)
+		return
+	}
 
 	var vidResp struct {
 		URL      string `json:"url"`
@@ -1175,15 +1286,44 @@ func handleVideoURL(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = api.GetJSON(path, &vidResp)
 
+	formattedIframe, formattedURL := formatPlayerHTML(template.HTML(vidResp.Response), vidResp.URL)
+
 	data := struct {
 		VideoURL  string
 		RawIframe template.HTML
 	}{
-		VideoURL:  vidResp.URL,
-		RawIframe: template.HTML(vidResp.Response),
+		VideoURL:  formattedURL,
+		RawIframe: formattedIframe,
 	}
 
 	renderPartial(w, "modal_player.html", "iframe_player", data)
+}
+
+// Proxy handler to serve Blogger videos without CORP headers blocking
+func handleProxyPlayer(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "Missing token parameter", http.StatusBadRequest)
+		return
+	}
+	targetURL := "https://www.blogger.com/video.g?token=" + token
+	req, err := http.NewRequest("GET", targetURL, nil)
+	if err != nil {
+		http.Error(w, "Failed to create request", http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+	c := &http.Client{Timeout: 10 * time.Second}
+	resp, err := c.Do(req)
+	if err != nil {
+		http.Error(w, "Blogger stream unavailable", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	io.Copy(w, resp.Body)
 }
 
 // Admin Carousel Management Handlers

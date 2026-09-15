@@ -389,16 +389,6 @@
                                 class="rounded border-[#E2E2DC] text-[#FFCC00] focus:ring-0" />
                             <span>Ingat Saya</span>
                         </label>
-
-                        <div class="flex items-center gap-1 text-[10px]">
-                            <span class="text-[#A0A0A8]">Auto-fill:</span>
-                            <button type="button"
-                                onclick="document.getElementById('modal-login-username').value='admin'; document.getElementById('modal-login-password').value='admin123';"
-                                class="px-2 py-0.5 rounded bg-[#F6F5F0] hover:bg-[#FFCC00] text-[#17171B] font-bold border border-[#E2E2DC] transition-colors">Admin</button>
-                            <button type="button"
-                                onclick="document.getElementById('modal-login-username').value='user'; document.getElementById('modal-login-password').value='user123';"
-                                class="px-2 py-0.5 rounded bg-[#F6F5F0] hover:bg-[#FFCC00] text-[#17171B] font-bold border border-[#E2E2DC] transition-colors">User</button>
-                        </div>
                     </div>
 
                     <button type="submit"
@@ -425,55 +415,6 @@
 
         </div>
     </div>
-</body>
-
-</html>
-{{end}}
-name="password"
-required
-placeholder="Masukkan kata sandi"
-class="w-full bg-[#F6F5F0] border border-[#E2E2DC] focus:border-[#FFCC00] focus:bg-white rounded-xl pl-10 pr-10 py-3
-text-[#1A1A1E] text-xs font-medium outline-none transition-all"
-/>
-<button type="button" @click="showPass = !showPass"
-    class="absolute right-3.5 text-[#A0A0A8] hover:text-[#17171B] transition-colors"
-    title="Tampilkan / Sembunyikan Kata Sandi">
-    <i x-show="!showPass" data-lucide="eye" class="w-4 h-4"></i>
-    <i x-show="showPass" data-lucide="eye-off" class="w-4 h-4" style="display: none;"></i>
-</button>
-</div>
-</div>
-
-<div class="flex items-center justify-between pt-1">
-    <label class="flex items-center gap-2 cursor-pointer select-none text-[11px] text-[#55555B] font-medium">
-        <input type="checkbox" checked class="rounded border-[#E2E2DC] text-[#FFCC00] focus:ring-0" />
-        <span>Ingat Saya</span>
-    </label>
-</div>
-
-<button type="submit"
-    class="w-full py-3.5 rounded-xl bg-[#17171B] hover:bg-[#FFCC00] text-[#FFCC00] hover:text-[#17171B] font-bold font-title text-sm transition-all flex items-center justify-center gap-2 shadow-md group">
-    <i data-lucide="log-in" class="w-4 h-4"></i>
-    <span>Masuk Sekarang</span>
-</button>
-</form>
-</div>
-
-<!-- Terms Footer -->
-<div class="pt-4 border-t border-[#E2E2DC] space-y-2.5 text-center text-[11px] text-[#55555B]">
-    <label class="flex items-start justify-center gap-2 cursor-pointer select-none leading-tight">
-        <input type="checkbox" checked class="mt-0.5 rounded border-[#E2E2DC] text-[#FFCC00] focus:ring-0 shrink-0" />
-        <span>Saya setuju dengan <a href="#" class="underline hover:text-[#17171B]">Syarat Layanan</a> & <a href="#"
-                class="underline hover:text-[#17171B]">Kebijakan Privasi</a></span>
-    </label>
-    <div>
-        Tidak punya akun? <a href="/register"
-            class="font-extrabold text-[#17171B] underline hover:text-[#FFCC00]">Registrasi Sekarang</a>
-    </div>
-</div>
-
-</div>
-</div>
 </body>
 
 </html>
