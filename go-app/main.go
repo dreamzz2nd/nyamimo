@@ -110,17 +110,19 @@ type SchedulePageData struct {
 }
 
 type User struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-	Role     string `json:"role"` // "admin" or "user"
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	Name             string `json:"name"`
+	Role             string `json:"role"` // "admin" or "user"
+	AutoSwitchServer *bool  `json:"auto_switch_server,omitempty"`
 }
 
 type ProfilePageData struct {
 	SEOData
-	Title       string
-	CurrentPage string
-	User        *User
+	Title            string
+	CurrentPage      string
+	User             *User
+	AutoSwitchServer bool
 }
 
 type AuthPageData struct {
@@ -249,6 +251,7 @@ func main() {
 	mux.HandleFunc("/type/", handleTypeDetail)
 	mux.HandleFunc("/schedule", handleSchedule)
 	mux.HandleFunc("/profile", handleProfile)
+	mux.HandleFunc("/profile/settings", handleProfileSettings)
 	mux.HandleFunc("/admin/carousel", handleAdminCarousel)
 
 	// SEO Routes
@@ -306,6 +309,9 @@ var funcMap = template.FuncMap{
 			return "U"
 		}
 		return strings.ToUpper(string([]rune(s)[0]))
+	},
+	"timeAgo": func(t interface{}) string {
+		return "Baru saja"
 	},
 	"getTotalAnimeCount": func() string {
 		count := api.GetTotalAnimeCount()
@@ -856,19 +862,64 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, "schedule.html", data)
 }
 
+func getAutoSwitchServerSetting(r *http.Request, user *User) bool {
+	if cookie, err := r.Cookie("auto_switch_server"); err == nil {
+		if cookie.Value == "false" {
+			return false
+		} else if cookie.Value == "true" {
+			return true
+		}
+	}
+	if user != nil && user.AutoSwitchServer != nil {
+		return *user.AutoSwitchServer
+	}
+	return true
+}
+
+func handleProfileSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Redirect(w, r, "/profile", http.StatusSeeOther)
+		return
+	}
+
+	val := r.FormValue("auto_switch_server")
+	enabled := val == "true"
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auto_switch_server",
+		Value:    fmt.Sprintf("%t", enabled),
+		Path:     "/",
+		Expires:  time.Now().Add(30 * 24 * time.Hour),
+		HttpOnly: false,
+	})
+
+	currentUser := getLoggedInUser(r)
+	if currentUser != nil {
+		currentUser.AutoSwitchServer = &enabled
+		usersDbLock.Lock()
+		usersDb[currentUser.Username] = *currentUser
+		usersDbLock.Unlock()
+	}
+
+	http.Redirect(w, r, "/profile", http.StatusSeeOther)
+}
+
 func handleProfile(w http.ResponseWriter, r *http.Request) {
 	user := getLoggedInUser(r)
+	autoSwitch := getAutoSwitchServerSetting(r, user)
+
 	data := ProfilePageData{
 		SEOData: SEOData{
-			MetaDescription: "Profil Pengguna dan Daftar Anime Favorit di Nyamimo.",
-			MetaKeywords:    "nyamimo profile, anime bookmark, favorit anime",
+			MetaDescription: "Profil Pengguna, Pengaturan Pemutar Video, dan Daftar Anime Favorit di Nyamimo.",
+			MetaKeywords:    "nyamimo profile, anime bookmark, favorit anime, settings server",
 			OgImage:         "https://nyamimo.onrender.com/static/logo.png",
 			CanonicalURL:    "https://nyamimo.onrender.com/profile",
 			OgType:          "website",
 		},
-		Title:       "My List & Profil Saya",
-		CurrentPage: "profile",
-		User:        user,
+		Title:            "My List & Profil Saya",
+		CurrentPage:      "profile",
+		User:             user,
+		AutoSwitchServer: autoSwitch,
 	}
 	renderPage(w, "profile.html", data)
 }
@@ -1200,26 +1251,41 @@ func formatPlayerHTML(rawIframe template.HTML, videoURL string) (template.HTML, 
 	return "", ""
 }
 
-func buildModalPlayerData(epsDetail client.EpisodeDetailResponse, ep, title string) ModalPlayerData {
+func buildModalPlayerData(epsDetail client.EpisodeDetailResponse, ep, title string, autoSwitch bool) ModalPlayerData {
 	var firstVideoURL string
 	var firstIframe template.HTML
 	var activeServerTitle string = "Server Utama"
 
-	// Try server options in provider's order (Option 0 = Blogspot, Option 1 = Premium, Option 2 = Vidhide, etc.)
 	if len(epsDetail.Videos) > 0 {
-		for _, v := range epsDetail.Videos {
+		if autoSwitch {
+			// Auto Switch ON: Iterate server options in provider's order until a valid stream is found
+			for _, v := range epsDetail.Videos {
+				var vidResp struct {
+					URL      string `json:"url"`
+					Response string `json:"response"`
+				}
+				if err := api.GetJSON(v.Video, &vidResp); err == nil {
+					formattedIframe, formattedURL := formatPlayerHTML(template.HTML(vidResp.Response), vidResp.URL)
+					if formattedIframe != "" || formattedURL != "" {
+						firstIframe = formattedIframe
+						firstVideoURL = formattedURL
+						activeServerTitle = v.Title
+						break
+					}
+				}
+			}
+		} else {
+			// Auto Switch OFF: Strictly use Server #1 (v[0]) without switching/fallback
+			v := epsDetail.Videos[0]
 			var vidResp struct {
 				URL      string `json:"url"`
 				Response string `json:"response"`
 			}
 			if err := api.GetJSON(v.Video, &vidResp); err == nil {
 				formattedIframe, formattedURL := formatPlayerHTML(template.HTML(vidResp.Response), vidResp.URL)
-				if formattedIframe != "" || formattedURL != "" {
-					firstIframe = formattedIframe
-					firstVideoURL = formattedURL
-					activeServerTitle = v.Title
-					break
-				}
+				firstIframe = formattedIframe
+				firstVideoURL = formattedURL
+				activeServerTitle = v.Title
 			}
 		}
 	} else if epsDetail.VideoURL != "" && epsDetail.VideoURL != "belum tersedia (segera)" {
@@ -1289,7 +1355,8 @@ func handleEpisodeModal(w http.ResponseWriter, r *http.Request) {
 	var epsDetail client.EpisodeDetailResponse
 	_ = api.GetJSON(detailEps, &epsDetail)
 
-	data := buildModalPlayerData(epsDetail, ep, title)
+	autoSwitch := getAutoSwitchServerSetting(r, getLoggedInUser(r))
+	data := buildModalPlayerData(epsDetail, ep, title, autoSwitch)
 	renderPartial(w, "modal_player.html", "modal_player", data)
 }
 
@@ -1302,7 +1369,8 @@ func handleEpisodeInline(w http.ResponseWriter, r *http.Request) {
 	var epsDetail client.EpisodeDetailResponse
 	_ = api.GetJSON(detailEps, &epsDetail)
 
-	data := buildModalPlayerData(epsDetail, ep, title)
+	autoSwitch := getAutoSwitchServerSetting(r, getLoggedInUser(r))
+	data := buildModalPlayerData(epsDetail, ep, title, autoSwitch)
 	renderPartial(w, "anime_detail.html", "inline_player_area", data)
 }
 
