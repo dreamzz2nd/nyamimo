@@ -55,6 +55,7 @@ type DetailPageData struct {
 	Title              string
 	CurrentPage        string
 	User               *User
+	AutoSwitchServer   bool
 	Slug               string
 	Detail             client.AnimeDetailData
 	BatchDownloads     []client.DownloadFormat
@@ -150,6 +151,7 @@ type ModalPlayerData struct {
 	Resolutions       []ResolutionOption
 	ActiveServerTitle string
 	Downloads         []client.DownloadFormat
+	AutoSwitchServer  bool
 }
 
 var api *client.APIClient
@@ -565,6 +567,9 @@ func handleAnimeDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	synopsisClean = strings.ReplaceAll(synopsisClean, "\n", " ")
 
+	user := getLoggedInUser(r)
+	autoSwitch := getAutoSwitchServerSetting(r, user)
+
 	data := DetailPageData{
 		SEOData: SEOData{
 			MetaDescription: fmt.Sprintf("Nonton streaming anime %s Subtitle Indonesia gratis kualitas HD. %s", detail.Title, synopsisClean),
@@ -576,7 +581,8 @@ func handleAnimeDetail(w http.ResponseWriter, r *http.Request) {
 		},
 		Title:              "Nonton " + detail.Title + " Sub Indo HD",
 		CurrentPage:        "detail",
-		User:               getLoggedInUser(r),
+		User:               user,
+		AutoSwitchServer:   autoSwitch,
 		Slug:               slug,
 		Detail:             detail,
 		BatchDownloads:     downloads,
@@ -1343,6 +1349,7 @@ func buildModalPlayerData(epsDetail client.EpisodeDetailResponse, ep, title stri
 		Resolutions:       resolutions,
 		ActiveServerTitle: activeServerTitle,
 		Downloads:         epsDetail.Downloads,
+		AutoSwitchServer:  autoSwitch,
 	}
 }
 

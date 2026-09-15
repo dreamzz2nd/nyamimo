@@ -372,7 +372,10 @@
         setTimeout(hideServerToast, 2200);
     }
 
+    window.autoSwitchServerEnabled = {{if .AutoSwitchServer}}true{{else}}false{{end}};
+
     function startServerHealthWatchdog() {
+        if (!window.autoSwitchServerEnabled) return;
         if (!window.currentEpisodeServers || window.currentEpisodeServers.length === 0) return;
         if (window.serverWatchdogTimer) clearTimeout(window.serverWatchdogTimer);
 
@@ -404,6 +407,7 @@
 
     function onPlayerIframeError() {
         if (window.serverWatchdogTimer) clearTimeout(window.serverWatchdogTimer);
+        if (!window.autoSwitchServerEnabled) return;
         if (window.activeServerIdx + 1 < window.currentEpisodeServers.length) {
             const nextIdx = window.activeServerIdx + 1;
             const nextServer = window.currentEpisodeServers[nextIdx];
