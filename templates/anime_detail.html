@@ -37,11 +37,18 @@
 
             <!-- Card: Pilihan Server Streaming (Provider) -->
             <div class="bg-white border border-[#E2E2DC] rounded-xl p-4 sm:p-5 shadow-sm space-y-3">
-                <div class="flex items-center justify-between border-b border-[#E2E2DC] pb-2.5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#E2E2DC] pb-2.5 gap-2">
                     <h3 class="font-title font-bold text-sm text-[#1A1A1E] flex items-center gap-2">
                         <span class="w-2.5 h-2.5 bg-[#FFCC00] rounded-sm"></span> Pilihan Server Streaming (Provider)
                     </h3>
-                    <span class="text-xs text-[#55555B]">Otomatis pindah server jika server utama bermasalah</span>
+                    <div class="flex items-center gap-2">
+                        <label class="inline-flex items-center gap-2 cursor-pointer select-none bg-[#F6F5F0] hover:bg-[#E2E2DC] border border-[#E2E2DC] px-2.5 py-1 rounded-lg transition-colors">
+                            <input type="checkbox" id="auto-switch-toggle" class="sr-only peer" onchange="toggleAutoSwitchServer(this.checked)" checked>
+                            <div class="relative w-7 h-4 bg-[#D1D1CB] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#17171B]"></div>
+                            <span class="font-bold text-xs text-[#1A1A1E] font-title">Auto Switch Server</span>
+                            <span id="auto-switch-status" class="text-[10px] px-1.5 py-0.5 rounded bg-[#FFCC00] text-[#17171B] font-extrabold font-title">ON</span>
+                        </label>
+                    </div>
                 </div>
                 
                 {{if .GroupedVideos}}
@@ -54,13 +61,13 @@
                         <div class="flex flex-wrap gap-2">
                             {{range $videos}}
                             <button 
+                                data-video-path="{{.Video}}"
                                 hx-get="/api/video-url?path={{.Video}}" 
                                 hx-target="#player-iframe-container" 
-                                onclick="showServerToast('Beralih ke {{.Title}}...'); startServerHealthWatchdog();"
-                                class="px-3.5 py-1.5 rounded-lg bg-white hover:bg-[#FFCC00] text-[#1A1A1E] hover:text-[#17171B] text-xs font-bold font-title transition-colors flex items-center gap-1.5 border border-[#E2E2DC] shadow-sm focus:bg-[#17171B] focus:text-[#FFCC00]"
+                                onclick="setActiveServerBtn(this); showServerToast('Beralih ke {{.Title}}...'); startServerHealthWatchdog();"
+                                class="server-btn px-3.5 py-1.5 rounded-lg text-xs font-bold font-title transition-all flex items-center gap-1.5 border shadow-sm cursor-pointer bg-white text-[#1A1A1E] border-[#E2E2DC] hover:bg-[#FFCC00] hover:text-[#17171B]"
                             >
-                                <i data-lucide="play" class="w-3 h-3 text-[#17171B]"></i>
-                                {{.Title}}
+                                <span>{{.Title}}</span>
                             </button>
                             {{end}}
                         </div>
@@ -332,6 +339,44 @@
     ];
     window.activeServerIdx = 0;
     window.serverWatchdogTimer = null;
+    window.autoSwitchServerEnabled = {{if .AutoSwitchServer}}true{{else}}true{{end}};
+
+    function setActiveServerBtn(btnEl) {
+        document.querySelectorAll('.server-btn').forEach(b => {
+            b.classList.remove('bg-[#17171B]', 'text-[#FFCC00]', 'border-[#17171B]', 'ring-2', 'ring-[#FFCC00]/40', 'shadow-md', 'active-server');
+            b.classList.add('bg-white', 'text-[#1A1A1E]', 'border-[#E2E2DC]');
+        });
+        if (btnEl) {
+            btnEl.classList.remove('bg-white', 'text-[#1A1A1E]', 'border-[#E2E2DC]');
+            btnEl.classList.add('bg-[#17171B]', 'text-[#FFCC00]', 'border-[#17171B]', 'ring-2', 'ring-[#FFCC00]/40', 'shadow-md', 'active-server');
+        }
+    }
+
+    function setActiveServerByIdx(idx) {
+        const allBtns = document.querySelectorAll('.server-btn');
+        if (allBtns.length > 0 && idx >= 0 && idx < allBtns.length) {
+            setActiveServerBtn(allBtns[idx]);
+        }
+    }
+
+    function toggleAutoSwitchServer(enabled) {
+        window.autoSwitchServerEnabled = enabled;
+        const statusEl = document.getElementById('auto-switch-status');
+        if (statusEl) {
+            statusEl.textContent = enabled ? 'ON' : 'OFF';
+            statusEl.className = enabled 
+                ? 'text-[10px] px-1.5 py-0.5 rounded bg-[#FFCC00] text-[#17171B] font-extrabold font-title'
+                : 'text-[10px] px-1.5 py-0.5 rounded bg-[#E2E2DC] text-[#55555B] font-extrabold font-title';
+        }
+        if (enabled) {
+            showServerToast('Auto Switch Server: DIAKTIFKAN');
+            startServerHealthWatchdog();
+        } else {
+            showServerToast('Auto Switch Server: DINONAKTIFKAN');
+            if (window.serverWatchdogTimer) clearTimeout(window.serverWatchdogTimer);
+        }
+        setTimeout(hideServerToast, 2000);
+    }
 
     function setPlayerQuality(qCode, qLabel) {
         const lbl = document.getElementById('active-quality-label');
@@ -358,6 +403,7 @@
             const chosen = window.currentEpisodeServers[targetIdx];
             if (chosen && chosen.videoPath) {
                 window.activeServerIdx = targetIdx;
+                setActiveServerByIdx(targetIdx);
                 showServerToast('Beralih ke kualitas ' + qLabel + ' (' + chosen.title + ')...');
                 htmx.ajax('GET', '/api/video-url?path=' + encodeURIComponent(chosen.videoPath), {
                     target: '#player-iframe-container',
@@ -372,8 +418,6 @@
         setTimeout(hideServerToast, 2200);
     }
 
-    window.autoSwitchServerEnabled = {{if .AutoSwitchServer}}true{{else}}false{{end}};
-
     function startServerHealthWatchdog() {
         if (!window.autoSwitchServerEnabled) return;
         if (!window.currentEpisodeServers || window.currentEpisodeServers.length === 0) return;
@@ -387,6 +431,7 @@
                 
                 showServerToast("⚠️ " + currentName + " bermasalah. Mengalihkan otomatis ke " + nextServer.title + "...");
                 window.activeServerIdx = nextIdx;
+                setActiveServerByIdx(nextIdx);
 
                 setTimeout(function() {
                     htmx.ajax('GET', '/api/video-url?path=' + encodeURIComponent(nextServer.videoPath), {
@@ -413,6 +458,7 @@
             const nextServer = window.currentEpisodeServers[nextIdx];
             showServerToast("⚠️ Server bermasalah. Mengalihkan otomatis ke " + nextServer.title + "...");
             window.activeServerIdx = nextIdx;
+            setActiveServerByIdx(nextIdx);
             htmx.ajax('GET', '/api/video-url?path=' + encodeURIComponent(nextServer.videoPath), {
                 target: '#player-iframe-container',
                 swap: 'innerHTML'
@@ -461,7 +507,8 @@
         }
     }
 
-    // Start health check on load
+    // Start health check and set initial active server button
+    setActiveServerByIdx(0);
     startServerHealthWatchdog();
 </script>
 {{end}}
