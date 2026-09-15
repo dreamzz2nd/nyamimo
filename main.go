@@ -1086,7 +1086,14 @@ func handleNotifications(w http.ResponseWriter, r *http.Request) {
 func formatPlayerHTML(rawIframe template.HTML, videoURL string) (template.HTML, string) {
 	rawStr := string(rawIframe)
 
-	// 1. Pixeldrain (Convert webpage URL/direct file to HTML5 Video element with CORS enabled)
+	// 1. Direct MP4 file link detection (e.g. s0.wibufile.com/video01/...mp4, or any direct .mp4 URL)
+	reMP4 := regexp.MustCompile(`https?://[^\s"'<>]+\.mp4(?:\?[^\s"'<>]*)?`)
+	mp4Match := reMP4.FindString(videoURL)
+	if mp4Match == "" {
+		mp4Match = reMP4.FindString(rawStr)
+	}
+
+	// 2. Pixeldrain (Convert webpage URL/direct file to HTML5 Video element with CORS enabled)
 	pixeldrainID := ""
 	if strings.Contains(videoURL, "pixeldrain.com/u/") {
 		parts := strings.Split(videoURL, "/u/")
@@ -1116,7 +1123,16 @@ func formatPlayerHTML(rawIframe template.HTML, videoURL string) (template.HTML, 
 		return template.HTML(html), directURL
 	}
 
-	// 2. Vidlion / Vidhide shortcode [vidlion id=XYZ]
+	if mp4Match != "" {
+		html := fmt.Sprintf(`
+		<video controls autoplay class="w-full h-full object-contain bg-black" poster="">
+			<source src="%s" type="video/mp4">
+			Browser kamu tidak mendukung pemutar video HTML5.
+		</video>`, mp4Match)
+		return template.HTML(html), mp4Match
+	}
+
+	// 3. Vidlion / Vidhide shortcode [vidlion id=XYZ]
 	if strings.Contains(rawStr, "[vidlion id=") {
 		re := regexp.MustCompile(`\[vidlion id=([a-zA-Z0-9]+)\]`)
 		m := re.FindStringSubmatch(rawStr)
@@ -1129,7 +1145,7 @@ func formatPlayerHTML(rawIframe template.HTML, videoURL string) (template.HTML, 
 		}
 	}
 
-	// 3. Blogger / Blogspot Proxy bypass for CORP headers
+	// 4. Blogger / Blogspot Proxy bypass for CORP headers
 	if strings.Contains(videoURL, "blogger.com/video.g?token=") || strings.Contains(rawStr, "blogger.com/video.g?token=") {
 		token := ""
 		if strings.Contains(videoURL, "token=") {
@@ -1152,7 +1168,25 @@ func formatPlayerHTML(rawIframe template.HTML, videoURL string) (template.HTML, 
 		}
 	}
 
-	// 4. Default iframe fallback
+	// 5. Wibufile embed page proxy (e.g. api.wibufile.com/embed/... or wibufile.com/embed/...)
+	if strings.Contains(videoURL, "wibufile.com/embed/") || strings.Contains(rawStr, "wibufile.com/embed/") {
+		targetURL := videoURL
+		if targetURL == "" || !strings.Contains(targetURL, "wibufile.com/embed/") {
+			re := regexp.MustCompile(`https?://[^\s"'<>]*wibufile\.com/embed/[^\s"'<>]+`)
+			m := re.FindString(rawStr)
+			if m != "" {
+				targetURL = m
+			}
+		}
+		if targetURL != "" {
+			proxyURL := fmt.Sprintf("/api/proxy-player?url=%s", url.QueryEscape(targetURL))
+			html := fmt.Sprintf(`
+			<iframe src="%s" class="w-full h-full border-0" allowfullscreen="true" webkitallowfullscreen="true" mozallowfullscreen="true" allow="fullscreen; autoplay; encrypted-media"></iframe>`, proxyURL)
+			return template.HTML(html), proxyURL
+		}
+	}
+
+	// 6. Default iframe fallback
 	if rawStr != "" && strings.Contains(rawStr, "<iframe") {
 		return rawIframe, videoURL
 	}
@@ -1299,31 +1333,54 @@ func handleVideoURL(w http.ResponseWriter, r *http.Request) {
 	renderPartial(w, "modal_player.html", "iframe_player", data)
 }
 
-// Proxy handler to serve Blogger videos without CORP headers blocking
+// Proxy handler to serve Blogger and Wibufile videos without CORP/Referer blocks
 func handleProxyPlayer(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, "Missing token parameter", http.StatusBadRequest)
+	targetURL := r.URL.Query().Get("url")
+
+	if targetURL == "" && token != "" {
+		targetURL = "https://www.blogger.com/video.g?token=" + token
+	}
+
+	if targetURL == "" {
+		http.Error(w, "Missing token or url parameter", http.StatusBadRequest)
 		return
 	}
-	targetURL := "https://www.blogger.com/video.g?token=" + token
+
 	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
 		http.Error(w, "Failed to create request", http.StatusInternalServerError)
 		return
 	}
+
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+	if strings.Contains(targetURL, "wibufile") {
+		req.Header.Set("Referer", "https://samehadaku.email/")
+	}
+
 	c := &http.Client{Timeout: 10 * time.Second}
 	resp, err := c.Do(req)
 	if err != nil {
-		http.Error(w, "Blogger stream unavailable", http.StatusBadGateway)
+		http.Error(w, "Stream unavailable", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	io.Copy(w, resp.Body)
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "Failed to read response body", http.StatusInternalServerError)
+		return
+	}
+
+	bodyStr := string(bodyBytes)
+	if strings.Contains(targetURL, "wibufile") && strings.Contains(bodyStr, "<head>") {
+		bodyStr = strings.Replace(bodyStr, "<head>", "<head><base href=\"https://api.wibufile.com/\">", 1)
+	}
+
+	w.Write([]byte(bodyStr))
 }
 
 // Admin Carousel Management Handlers
